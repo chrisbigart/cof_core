@@ -1404,17 +1404,17 @@ std::vector<battlefield_unit_t*> battlefield_t::cast_spell_on_random_troops(army
 	return targets;
 }
 
-uint battlefield_t::cast_spell(hero_t* caster, spell_e spell_id, int target_x, int target_y, battlefield_unit_t* target_unit) {
+spell_result_e battlefield_t::cast_spell(hero_t* caster, spell_e spell_id, int target_x, int target_y, battlefield_unit_t* target_unit) {
 	//if(not current hero's turn)
-	if(!caster || !caster->knows_spell(spell_id))
-		return 1; //ERROR_INVALID_PARAMETERS
+        if(!caster || !caster->knows_spell(spell_id))
+                return SPELL_RESULT_ERROR;
 	
 	const auto& spell = game_config::get_spell(spell_id);
 	
 	uint16_t mana_cost = caster->get_spell_cost(spell_id);
 	
-	if(caster->mana < mana_cost)
-		return 2;//ERROR_INSUFFICIENT_MANA;
+        if(caster->mana < mana_cost)
+                return SPELL_RESULT_INSUFFICIENT_MANA;
 	
 	//verify valid targets
 	//if(spell.target == TARGET_ALL_ALLIED || spell.target == TARGET_ALL_ENEMY || spell.target == TARGET_ALL_UNITS || spell.target == TARGET_SUMMON)
@@ -1426,8 +1426,8 @@ uint battlefield_t::cast_spell(hero_t* caster, spell_e spell_id, int target_x, i
 	if(!target && (spell_id == SPELL_RESURRECTION || spell_id == SPELL_REANIMATE_DEAD || spell_id == SPELL_ARCANE_REANIMATION))
 		target = get_dead_unit_on_hex(target_x, target_y);
 
-	if(target && !is_spell_target_valid(caster, target, spell_id))
-		return 3;
+        if(target && !is_spell_target_valid(caster, target, spell_id))
+                return SPELL_RESULT_INVALID_TARGET;
 //	if(caster == attacking_hero && attacking_hero_used_cast)
 //		return 3;
 //	else if(caster == defending_hero && defending_hero_used_cast)
@@ -1436,10 +1436,8 @@ uint battlefield_t::cast_spell(hero_t* caster, spell_e spell_id, int target_x, i
 	auto& caster_troops = (caster == attacking_hero ? attacking_army.troops : defending_army.troops);
 	auto& enemy_troops = (caster == attacking_hero ? defending_army.troops : attacking_army.troops);
 	
-	std::vector<battlefield_unit_t*> units_to_update;
-	
-	uint32_t damage = 0;
-	uint32_t total_damage = 0;
+        uint32_t damage = 0;
+        uint32_t total_damage = 0;
 	uint16_t total_kills = 0;
 	
 	battle_action_t action;
@@ -1451,19 +1449,19 @@ uint battlefield_t::cast_spell(hero_t* caster, spell_e spell_id, int target_x, i
 	
 	switch(spell_id) {
 		//MARK: nukes
-		case SPELL_IMPLOSION:
-		case SPELL_ARCANE_BOLT:
-		case SPELL_SHADOW_BOLT:
-		case SPELL_LIGHTNING_BOLT:
-		case SPELL_FIRE_BALL:
-		case SPELL_LUNAR_ARROW:
-		case SPELL_FIRE_BLAST:
-		case SPELL_FROST_RAY:
-		case SPELL_ELECTROCUTE:
-		case SPELL_REAPERS_SCYTHE:
-		case SPELL_ICE_LANCE: {
-			if(!target)
-				return 1;
+                case SPELL_IMPLOSION:
+                case SPELL_ARCANE_BOLT:
+                case SPELL_SHADOW_BOLT:
+                case SPELL_LIGHTNING_BOLT:
+                case SPELL_FIRE_BALL:
+                case SPELL_LUNAR_ARROW:
+                case SPELL_FIRE_BLAST:
+                case SPELL_FROST_RAY:
+                case SPELL_ELECTROCUTE:
+                case SPELL_REAPERS_SCYTHE:
+                case SPELL_ICE_LANCE: {
+                        if(!target)
+                                return SPELL_RESULT_INVALID_TARGET;
 
 			damage = spell.multiplier[0].get_value(get_hero_adjusted_power(caster), caster->get_spell_effect_multiplier(spell_id));
 			damage = calculate_magic_damage_to_stack(damage, *target, spell.damage_type);
@@ -1643,9 +1641,9 @@ uint battlefield_t::cast_spell(hero_t* caster, spell_e spell_id, int target_x, i
 			break;
 
 		//MARK: dispells/cures
-		case SPELL_CURE:
-			if(!target)
-				return 1;
+                case SPELL_CURE:
+                        if(!target)
+                                return SPELL_RESULT_INVALID_TARGET;
 
 			for(auto& buff : target->buffs) {
 				const auto& binfo = game_config::get_buff_info(buff.buff_id);
@@ -1689,9 +1687,9 @@ uint battlefield_t::cast_spell(hero_t* caster, spell_e spell_id, int target_x, i
 		case SPELL_STONESKIN:
 		case SPELL_HASTE:
 		//case SPELL_ANGELS_WINGS:
-		case SPELL_DIVINE_INSPIRATION: {
-			if(!target)
-				return 1;
+                case SPELL_DIVINE_INSPIRATION: {
+                        if(!target)
+                                return SPELL_RESULT_INVALID_TARGET;
 
 			auto buff = get_buff_for_spell(spell_id);
 			float prebuff_hp_percent = 1.f;
@@ -1785,17 +1783,17 @@ uint battlefield_t::cast_spell(hero_t* caster, spell_e spell_id, int target_x, i
 		case SPELL_BLIND:
 
 		//MARK: debuffs
-		case SPELL_CURSE:
-		case SPELL_CRIPPLE:
-		case SPELL_SORROW:
-		case SPELL_MISFORTUNE:
-		case SPELL_FEAR:
-		case SPELL_DAMNATION:
-		case SPELL_BERSERK:
-		case SPELL_INFEST:
-		case SPELL_SLOW: {
-			if(!target)
-				return 1;
+                case SPELL_CURSE:
+                case SPELL_CRIPPLE:
+                case SPELL_SORROW:
+                case SPELL_MISFORTUNE:
+                case SPELL_FEAR:
+                case SPELL_DAMNATION:
+                case SPELL_BERSERK:
+                case SPELL_INFEST:
+                case SPELL_SLOW: {
+                        if(!target)
+                                return SPELL_RESULT_INVALID_TARGET;
 			
 			auto buff = get_buff_for_spell(spell_id);
 			//berserk lasts until the affected unit performs an attack
@@ -1837,9 +1835,9 @@ uint battlefield_t::cast_spell(hero_t* caster, spell_e spell_id, int target_x, i
 		//	break;
 		
 		//MARK: heals/resurrection
-		case SPELL_REJUVENATION: {
-			if(!target)
-				return 1;
+                case SPELL_REJUVENATION: {
+                        if(!target)
+                                return SPELL_RESULT_INVALID_TARGET;
 
 			//remove debuffs first, then perform healing
 			int max_debuffs_to_remove = spell.multiplier[1].get_value(caster->get_effective_power(), caster->get_spell_effect_multiplier(spell_id));
@@ -1896,11 +1894,11 @@ uint battlefield_t::cast_spell(hero_t* caster, spell_e spell_id, int target_x, i
 		case SPELL_HOLY_LIGHT:
 			break;
 
-		case SPELL_ARCANE_REANIMATION:
-		case SPELL_RESURRECTION:
-		case SPELL_REANIMATE_DEAD: {
-			if(!target || !is_spell_target_valid(caster, target, spell_id))
-				return 1;
+                case SPELL_ARCANE_REANIMATION:
+                case SPELL_RESURRECTION:
+                case SPELL_REANIMATE_DEAD: {
+                        if(!target || !is_spell_target_valid(caster, target, spell_id))
+                                return SPELL_RESULT_INVALID_TARGET;
 
 			int hp_to_heal = spell.multiplier[0].get_value(caster->get_effective_power(), caster->get_spell_effect_multiplier(spell_id));
 			if(spell_id == SPELL_RESURRECTION) {
@@ -1983,7 +1981,7 @@ uint battlefield_t::cast_spell(hero_t* caster, spell_e spell_id, int target_x, i
 	if(!troops_remain())
 		end_combat();
 	
-	return 0;
+        return SPELL_RESULT_OK;
 }
 
 battlefield_unit_t* get_random_troop(army_t::battlefield_unit_group_t& troops) {
