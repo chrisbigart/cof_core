@@ -1,0 +1,45 @@
+SPECIALTY_ARCANE_MAGIC	Arcane Magic	Arcane Magic spells cost 20% less mana, and have 1% per level increased effectiveness.	1*Level	spell_icons/124	HERO_WIZARD, HERO_WARLOCK, HERO_SORCERESS
+SPECIALTY_HOLY_MAGIC	Holy Magic	Holy Magic spells cost 20% less mana, and have 1% per level increased effectiveness.	1*Level	spell_icons/92	HERO_KNIGHT, HERO_SORCERESS
+SPECIALTY_NATURE_MAGIC	Nature Magic	Nature Magic spells cost 20% less mana, and have 1% per level increased effectiveness.	1*Level	spell_icons/108	HERO_SORCERESS,
+SPECIALTY_DESTRUCTION_MAGIC	Destruction Magic	Destruction Magic spells cost 20% less mana, and have 1% per level increased effectiveness.	1*Level	spell_icons/60	HERO_WARLOCK, HERO_NECROMANCER
+SPECIALTY_DEATH_MAGIC	Death Magic	Death Magic spells cost 20% less mana, and have 1% per level increased effectiveness.	1*Level	spell_icons/76	HERO_WARLOCK, HERO_NECROMANCER
+SPECIALTY_FIRE_MAGIC	Fire Damage	Increases the damage of all spells which deal Fire damage by 2% per level.	2*Level	spell_icons/28	HERO_WIZARD, HERO_WARLOCK, HERO_NECROMANCER
+SPECIALTY_LIGHTNING_MAGIC	Lightning Damage	Increases the damage of all spells which deal Lightning damage by 2% per level.	2*Level	spell_icons/14	HERO_WIZARD, HERO_WARLOCK, HERO_NECROMANCER
+SPECIALTY_EARTH_MAGIC	Earth Damage	Increases the damage of all spells which deal Earth damage by 2% per level.	2*Level	spell_icons/12	HERO_WIZARD, HERO_WARLOCK
+SPECIALTY_FROST_MAGIC	Frost Damage	Increases the damage of all spells which deal Frost damage by 2% per level.	2*Level	spell_icons/31	HERO_WIZARD, HERO_WARLOCK
+SPECIALTY_CHAOS_MAGIC	Chaos Damage	Increases the damage of all spells which deal Chaos damage by 2% per level.	2*Level	spell_icons/29	HERO_WARLOCK, HERO_NECROMANCER
+SPECIALTY_INTELLIGENCE	Intelligence	Increases the increased maximum mana value of your Intelligence skill by +10% + 1% per level.	1*Level	spell_icons/125	HERO_WARLOCK, HERO_WIZARD
+SPECIALTY_SORCERY	Sorcery	Increases the effectiveness of your Sorcery skill by +5%.		spell_icons/46	HERO_WARLOCK
+SPECIALTY_SPELL_PENETRATION	Disruption	Increases the effectiveness of your Disruption skill by +10%.		spell_icons/110	HERO_WARLOCK
+SPECIALTY_LOGISTICS	Logistics	Increases the effectiveness of your Logistics skill by +5%.		spell_icons/30	HERO_BARBARIAN, HERO_KNIGHT, HERO_NECROMANCER
+SPECIALTY_PATHFINDING	Pathfinding	Increases the effectiveness of your Pathfinding skill by +10%.		spell_icons/78	HERO_BARBARIAN, HERO_KNIGHT, HERO_NECROMANCER
+SPECIALTY_ARCHERS	Archers	Archers have +1 to Initiative and deal 1% more damage per level.	1*Level	unit_portraits/17	HERO_KNIGHT
+SPECIALTY_CRUSADERS	Crusaders	Crusaders deal 20% +2% per level more damage on their second attack.	20+2*Level	unit_portraits/21	HERO_KNIGHT
+SPECIALTY_VAMPIRES	Vampires	Vampire life drain increased by 20% + 2% per level.	20+2*Level	unit_portraits/34	HERO_NECROMANCER
+SPECIALTY_MAGI	Magi	Magi can shoot at adjacent units.		unit_portraits/44	HERO_WIZARD
+SPECIALTY_ORCS	Orcs	Orcs have a 20% + 2% per level chance of shooting an additional ranged attack.	20+2*Level	unit_portraits/9	HERO_BARBARIAN
+SPECIALTY_WAR_MACHINES	War Machines	Ballistas and Catapults deal 20% + 2% per level more damage.	20+2*Level	spell_icons/79	HERO_BARBARIAN, HERO_KNIGHT
+SPECIALTY_GOLD	Gold	Provides your Kingdom with 200 + 50 per level Gold per day.	200+50*Level	spell_icons/13	HERO_BARBARIAN, HERO_KNIGHT
+SPECIALTY_FOOTMEN	Footmen	Footmen perform an additional attack.		unit_portraits/18	HERO_KNIGHT
+SPECIALTY_PHOENIX	Phoenix	Phoenix have a +20% chance to be Reborn.		unit_portraits/5	HERO_SORCERESS
+SPECIALTY_UNICORNS	Unicorns	Unicorns have +10% + 1% per level magic resistance.	10+1*Level	unit_portraits/4	HERO_SORCERESS
+SPECIALTY_DRUIDS	Druids	Druids have +1 Initiative and +3 Defense.		unit_portraits/3	HERO_SORCERESS
+SPECIALTY_ELVES	Elves	Elves deal +20% more damage.		unit_portraits/2	HERO_SORCERESS
+SPECIALTY_SKELETONS	Skeletons	Skeletons have +1 Initiative and +1 Speed.		unit_portraits/32	HERO_NECROMANCER
+SPECIALTY_LICHES	Liches	Liches deal +25% damage to units they target directly.		unit_portraits/35	HERO_NECROMANCER
+SPECIALTY_RESTORATION	Restoration	Healing spells restore +20% +1% per level more health.	20+1*Level	spell_icons/0	HERO_KNIGHT, HERO_SORCERESS
+SPECIALTY_RESISTANCE	Resistance	Your troops have +15% spell resistance.		spell_icons/44	HERO_BARBARIAN, HERO_KNIGHT
+SPECIALTY_WOLVES	Wolves	Your Wolves’ second attack deals 20% + 2% per level more damage.	20+2*Level	unit_portraits/10	HERO_BARBARIAN
+SPECIALTY_BISHOPS	Bishops	Bishops can attack adjacent units.		unit_portraits/19	HERO_KNIGHT
+SPECIALTY_BLESS	Bless	Bless additionally causes units to deal +1 damage per unit tier.		spell_icons/55	HERO_KNIGHT, HERO_SORCERESS
+SPECIALTY_OFFENSE	Offense	Increases the effectiveness of your Offense skill by +10%.		spell_icons/62	HERO_BARBARIAN, HERO_KNIGHT
+SPECIALTY_GOBLINS	Goblins	Goblins have +2 to damage and +1 to Speed.		unit_portraits/8	HERO_BARBARIAN
+SPECIALTY_DEFENSE	Defense	Increases the effectiveness of your Defense skill by +5%.		spell_icons/63	HERO_BARBARIAN, HERO_KNIGHT
+SPECIALTY_REANIMATE_DEAD	Reanimate Dead	Increases the effectiveness of your Reanimate Dead spell by 1% per level.	1*Level	spell_icons/64	HERO_NECROMANCER
+SPECIALTY_DARK_ENERGY	Dark Energy	Increases your maximum Dark Energy by 15%.		spell_icons/15	HERO_NECROMANCER
+SPECIALTY_SHADOW_BOLT	Shadow Bolt	Shadow Bolt deals +20% + 1% per level more damage.	20+1*Level	spell_icons/1	HERO_WARLOCK
+SPECIALTY_CRIPPLE	Cripple	Casting Cripple or Mass Cripple also casts Curse on the target unit.		spell_icons/82	HERO_WARLOCK
+SPECIALTY_SPELL_HASTE	Spell Haste	Increases the effectiveness of your Spell Haste skill by +5%.		spell_icons/111	HERO_WIZARD, HERO_WARLOCK
+SPECIALTY_LIGHTNING_BOLT	Lightning Bolt	Increases the damage of your Lightning Bolt by 1% per level.	1*Level	spell_icons/1	HERO_SORCERESS, HERO_WIZARD, HERO_WARLOCK
+SPECIALTY_ICE_LANCE	Ice Lance	Increases the effectiveness of your Ice Lance spell by 50%.		spell_icons/4	HERO_WIZARD, HERO_WARLOCK
+SPECIALTY_ELECTROCUTE	Electrocute	Increases the effectiveness of your Electrocute spell by 40%.		spell_icons/2	HERO_WIZARD, HERO_WARLOCK

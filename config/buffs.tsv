@@ -1,0 +1,106 @@
+BUFF_FLYER	200		BUFF_TYPE_INHERENT	Flyer	Can fly over obstacles on the battlefield.
+BUFF_SHOOTER	201		BUFF_TYPE_INHERENT	Shooter	Can shoot at range.
+BUFF_SHOOTS_ARROWS			BUFF_TYPE_INHERENT	Arrow Shooter	Shoots arrows.
+BUFF_UNDEAD			BUFF_TYPE_INHERENT	Undead	Immune to mind influencing spells; neutral morale.
+BUFF_ANIMATED			BUFF_TYPE_INHERENT	Automaton	Immune to mind influencing spells; unliving.
+BUFF_SUMMONED			BUFF_TYPE_INHERENT	Summoned	Disappears at the end of combat.
+BUFF_NO_MELEE_PENALTY			BUFF_TYPE_INHERENT	No Melee Penalty	Performs melee attacks at full damage.
+BUFF_SHOOTS_TWICE			BUFF_TYPE_INHERENT	Shoots Twice	Performs two ranged attacks.
+BUFF_UNLIMITED_SHOTS			BUFF_TYPE_INHERENT	Unlimited Shots	Never runs out of ammo.
+BUFF_NO_ENEMY_RETALIATION			BUFF_TYPE_INHERENT	Untouchable	Enemies cannot retaliate against this creature’s attacks.
+BUFF_MULTIPLE_RETAILIATIONS			BUFF_TYPE_INHERENT	Counter Strike	Can retaliate {x} additional times per round.
+BUFF_UNLIMITED_RETALIATIONS			BUFF_TYPE_INHERENT	Unlimited Retaliations	Can retaliate an unlimited number of times.
+BUFF_ATTACK_ALL_ADJACENT_UNITS			BUFF_TYPE_INHERENT	Multi Headed	Attacks all adjacent units.
+BUFF_THREE_HEADED_ATTACK			BUFF_TYPE_INHERENT	Three Headed	Attacks up to 3 units directly in front of it.
+BUFF_DOUBLE_ATTACK			BUFF_TYPE_INHERENT	Double Strike	Attacks twice.
+BUFF_LICH_DEATH_CLOUD_ATTACK			BUFF_TYPE_INHERENT	Death Cloud	Ranged attacks also deal damage to all surrounding living units.
+BUFF_MAGOG_FIREBALL_ATTACK			BUFF_TYPE_INHERENT	Fireball Attack	Ranged attacks also deal fire damage to all surrounding units.
+BUFF_STRIKE_AND_RETURN			BUFF_TYPE_INHERENT	Strike and Return	Attacks, then returns to its starting position.
+BUFF_REDUCED_DAMAGE_FROM_ARROWS			BUFF_TYPE_INHERENT	Porous	Takes {x}% less damage from arrows.
+BUFF_VAMPIRE_LIFESTEAL			BUFF_TYPE_INHERENT	Lifesteal	Gains life equal to {x}% of damage done; can revive dead units.
+BUFF_GHOST_SOULSTEAL			BUFF_TYPE_INHERENT	Soulsteal	Stack gains 1 unit per unit killed.
+BUFF_RANGED_CAN_SHOOT_ADJACENT			BUFF_TYPE_INHERENT	Trickster	Can shoot even when units are adjacent.
+BUFF_NO_RANGE_PENALTY			BUFF_TYPE_INHERENT	Precision Shot	No range or castle wall penalty for ranged attacks.
+BUFF_DOUBLE_DAMAGE			BUFF_TYPE_INHERENT	Double Damage	{x}% chance to deal double damage.
+BUFF_DRAGON_BREATH_ATTACK			BUFF_TYPE_INHERENT	Fire Breath	Attacks also deal damage to the hex directly behind it.
+BUFF_TROLL_REGENERATION			BUFF_TYPE_INHERENT	Regeneration	Heals to full life at the start of each round.
+BUFF_BEHEMOTH_CLAWS			BUFF_TYPE_INHERENT	Shredding Claws	Ignores {x}% of target’s defense.
+BUFF_NIX_SHIELD			BUFF_TYPE_INHERENT	Impenetrable Armour	Unit ignores {x}% of attacker’s Attack.
+BUFF_LUCK_AURA			BUFF_TYPE_INHERENT	Luck Aura	
+BUFF_UNICORN_RESISTANCE			BUFF_TYPE_INHERENT	Antimagic Aura	
+BUFF_DRAGON_MAGIC_DAMPER			BUFF_TYPE_INHERENT	Magic Damper	All magical effects reduced by {x}%.
+BUFF_MAGIC_RESISTANCE	46		BUFF_TYPE_POSITIVE	Magic Resistant	
+BUFF_MAGIC_IMMUNITY	122		BUFF_TYPE_POSITIVE	Magic Immune	Immune to all magic.
+BUFF_MAGIC_REFLECTION	47		BUFF_TYPE_POSITIVE	Magic Mirror	
+BUFF_MAGIC_ABSORPTION	31		BUFF_TYPE_POSITIVE	Magic Absorption	
+BUFF_BLIND_ON_ATTACK			BUFF_TYPE_INHERENT	Blinding Strike	{x}% chance to blind a unit on attack, lasting 3 rounds.
+BUFF_PARALYZE_ON_ATTACK			BUFF_TYPE_INHERENT	Paralyzer	{x}% chance to paralyze a unit on attack, lasting 3 rounds.
+BUFF_SEDUCE_ON_ATTACK			BUFF_TYPE_INHERENT	Seduction	{x}% chance to seduce a unit on attack, lasting 3 rounds.
+BUFF_CURSE_ON_ATTACK			BUFF_TYPE_INHERENT	Cursed Attack	{x}% chance to curse a unit on attack, lasting 6 rounds.
+BUFF_POISON_ON_ATTACK			BUFF_TYPE_INHERENT	Poisonous Strike	{x}% chance to poison a unit on attack, lasting 3 rounds.
+BUFF_LIGHTNING_ON_ATTACK			BUFF_TYPE_INHERENT	Thundergod	{x}% chance to call down a lightning bolt on attack.
+BUFF_FIRE_IMMUNITY			BUFF_TYPE_INHERENT	Magmatic	Immune to Fire damage.
+BUFF_FROST_IMMUNITY			BUFF_TYPE_INHERENT	Icy	Immune to Frost damage.
+BUFF_LIGHTNING_IMMUNITY			BUFF_TYPE_INHERENT	Grounded	Immune to Lightning damage.
+BUFF_EARTH_IMMUNITY			BUFF_TYPE_INHERENT	Stalwart	Immune to Nature magic.
+BUFF_CHAOS_IMMUNITY			BUFF_TYPE_INHERENT	Inoculated	Immune to Chaos damage.
+BUFF_DEATH_IMMUNITY			BUFF_TYPE_INHERENT	Everliving	Immune to Death magic.
+BUFF_LIFE_IMMUNITY			BUFF_TYPE_INHERENT	Necrotic	Immune to Life magic.
+BUFF_HOLY_IMMUNITY			BUFF_TYPE_INHERENT	Unhallowed	Immune to Holy magic.
+BUFF_ARCANE_IMMUNITY			BUFF_TYPE_INHERENT	Enigmatic	Immune to Arcane magic.
+BUFF_DESTRUCTION_IMMUNITY			BUFF_TYPE_INHERENT	Indestructable	Immune to Holy magic.
+BUFF_REDUCED_DAMAGE_FROM_RETALIATIONS			BUFF_TYPE_INHERENT	Resilient	Takes {x}% less damage from retaliations.
+BUFF_POSITIVE_MORALE	127		BUFF_TYPE_INHERENT	Undaunted	+1 Morale and cannot go below +1 Morale.
+BUFF_EXTRA_DAMAGE_ON_FIRST_ATTACK			BUFF_TYPE_INHERENT	Ambush	Deals {x}% extra damage on first attack.
+BUFF_JOUSTING_BONUS			BUFF_TYPE_INHERENT	Mounted	Deals {x}% extra damage for each hex travelled during attack.
+BUFF_SPELLCASTER			BUFF_TYPE_INHERENT	Spellcaster	Casts spells.
+BUFF_TELEPORTATION			BUFF_TYPE_INHERENT	Teleporter	Teleportation.
+BUFF_MIND_SPELL_IMMUNITY	108		BUFF_TYPE_INHERENT	Iron Will	Immune to mind influencing spells.
+BUFF_EXTRA_DAMAGE_TO_UNDEAD			BUFF_TYPE_INHERENT	Sanctified	Deals {x}% more damage to the undead.
+BUFF_BLESSED	11		BUFF_TYPE_POSITIVE	Blessed	Always dealing maximum damage.
+BUFF_REDUCED_DAMAGE_FROM_RANGED	172		BUFF_TYPE_POSITIVE	Air Shield	Takes {x}% less damage from ranged attacks.
+BUFF_REDUCED_DAMAGE_FROM_MELEE	8		BUFF_TYPE_POSITIVE	Toughened	Takes {x}% less damage from melee attacks.
+BUFF_CURSED	100		BUFF_TYPE_NEGATIVE	Cursed	Always dealing minimum damage.
+BUFF_INCREASED_LUCK	20		BUFF_TYPE_POSITIVE	Lucky	Luck increased by +{x}.
+BUFF_INCREASED_MORALE	45		BUFF_TYPE_POSITIVE	Rallied	Morale increased by +{x}.
+BUFF_INCREASED_DAMAGE	127		BUFF_TYPE_POSITIVE	Empowered	Damage increased by +{x}.
+BUFF_INCREASED_SPEED	207		BUFF_TYPE_POSITIVE	Hastened	Speed increased by +{x}.
+BUFF_INCREASED_INITIATIVE	158		BUFF_TYPE_POSITIVE	Alert	Initiative increased by +{x}.
+BUFF_INCREASED_HEALTH	94		BUFF_TYPE_POSITIVE	Fortified	Health increased by {x}%.
+BUFF_INCREASED_DEFENSE	58		BUFF_TYPE_POSITIVE	Bulwark	Defense increased by +{x}.
+BUFF_INCREASED_ATTACK	128		BUFF_TYPE_POSITIVE	Mighty	Attack increased by +{x}.
+BUFF_REINCARNATION	52		BUFF_TYPE_INHERENT	Reincarnation	Chance to resurrect upon death.
+BUFF_ROOTED	203		BUFF_TYPE_NEGATIVE	Rooted	Unable to move.
+BUFF_BLINDED	202		BUFF_TYPE_NEGATIVE	Blinded	Unable to act.
+BUFF_PARALYZED	241		BUFF_TYPE_NEGATIVE	Paralyzed	Unable to act.
+BUFF_PACIFIED	205		BUFF_TYPE_NEGATIVE	Pacified	Asleep until woken.
+BUFF_SLOWED	206		BUFF_TYPE_NEGATIVE	Slowed	Speed decreased by -{x}.
+BUFF_HASTENED	207		BUFF_TYPE_POSITIVE	Hastened	Speed increased by +{x}.
+BUFF_CRUSADE_DEBUFF_STACK	1		BUFF_TYPE_NEGATIVE	Inquisitioned	Takes {x}% more damage.
+BUFF_ON_GUARD	2		BUFF_TYPE_POSITIVE	On Guard	Takes 20% less damage until the unit moves, or the end of the first round.
+BUFF_SEDUCED	204		BUFF_TYPE_NEGATIVE	Seduced	Unable to act.
+BUFF_ELECTROCUTED	208		BUFF_TYPE_NEGATIVE	Shocked	Up to {x}% reduced magic resistance.
+BUFF_CAUTERIZED	126		BUFF_TYPE_POSITIVE	Cauterized	Immune to stun from Fire Blast.
+BUFF_THAWED	236		BUFF_TYPE_POSITIVE	Thawed	Immune to freeze from Ice Lance.
+BUFF_FROZEN	235		BUFF_TYPE_NEGATIVE	Frozen	Unable to act.
+BUFF_BURNING	191		BUFF_TYPE_NEGATIVE	Burning	Taking {x} Fire damage per round.
+BUFF_STUNNED	129		BUFF_TYPE_NEGATIVE	Stunned	Unable to act.
+BUFF_FEARED	143		BUFF_TYPE_NEGATIVE	Terrorized	Unable to act.
+BUFF_BERSERK	131		BUFF_TYPE_NEGATIVE	Berserk	Will attack the nearest creature, friend or foe.
+BUFF_FIRE_SHIELD	237		BUFF_TYPE_POSITIVE	Fire Shield	Attackers take {x}% of damage done as Fire damage.
+BUFF_THORNS	40		BUFF_TYPE_POSITIVE	Holy Thorns	Attackers take {x} as Holy damage.
+BUFF_ANGELS_WINGS	21		BUFF_TYPE_POSITIVE	Winged	Unit is ably to fly.
+BUFF_MANA_SHIELD	242		BUFF_TYPE_POSITIVE	Buffered	Protected by Mana Shield.
+BUFF_CRIPPLED	240		BUFF_TYPE_NEGATIVE	Crippled	Dealing {x}% less damage.
+BUFF_SPINS_WEBS			BUFF_TYPE_INHERENT	Web Spinner	Can cast ‘Spin Web’.
+BUFF_FIRST_STRIKE	158		BUFF_TYPE_POSITIVE	First Strike	+2 speed and +1 initiative.
+BUFF_DIVINE_INSPIRATION	96		BUFF_TYPE_POSITIVE	Inspired	+{x} to Attack, Defense, Speed, and Initiative.
+BUFF_OVERWHELMED	119		BUFF_TYPE_NEGATIVE	Overwhelmed	Taking {x}% more damage.
+BUFF_FEROCITY	166		BUFF_TYPE_POSITIVE	Ferocious	Dealing 40% more damage.
+BUFF_BONECHILLED	138		BUFF_TYPE_NEGATIVE	Bonechilled	Speed reduced by 2 and Initiative reduced by 1.
+BUFF_INFESTED	157		BUFF_TYPE_NEGATIVE	Infested	Defense reduced by {x}.
+BUFF_POISONED	29		BUFF_TYPE_NEGATIVE	Poisoned	Taking {x} damage per round.
+BUFF_CHILLED	120		BUFF_TYPE_NEGATIVE	Chilled	Speed reduced by {x}.
+BUFF_SWIFT_STRIKE	99		BUFF_TYPE_POSITIVE	Swift	Has +2 Speed during the first round.
+BUFF_WING_CLIPPED	115		BUFF_TYPE_POSITIVE	Wing Clipped	Speed reduced by 2.
+BUFF_CATS_SWIFTNESS	186		BUFF_TYPE_POSITIVE	Cat's Swiftness	Can retaliate {x} additional times per round.

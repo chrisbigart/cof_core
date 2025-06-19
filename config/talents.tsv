@@ -1,0 +1,118 @@
+HERO_BARBARIAN	10	TALENT_OFFENSE	Offense	Increases your Attack by +1.	0
+HERO_BARBARIAN	44	TALENT_NATURAL_RESISTANCE	Natural Resistance	Provides +20% magic resistance.	1
+HERO_BARBARIAN	134	TALENT_TRADER	Trader	Marketplaces in your Kingdom receive a better exchange rate.	1
+HERO_BARBARIAN	119	TALENT_OVERWHELM	Overwhelm	Your troops deal 5% more damage to enemy units for every adjacent allied troop.	2
+HERO_BARBARIAN	125	TALENT_SEIZE_THE_SIEGE	Seize the Siege	Your troops take 20% less damage from turrets when attacking an enemy town, and castle walls take less damage to destroy.	2
+HERO_BARBARIAN	133	TALENT_TIRELESS	Tireless	Increases your daily movement points by +10%.	2
+HERO_BARBARIAN	135	TALENT_FREELANCER	Freelancer	Increases the weekly growth of your Barbarian Tier 1 & 2 units by 15%, and reduces their cost by 10%.	2
+HERO_BARBARIAN	170	TALENT_CHAIN_BREAKER	Chain Breaker	Using a warcry on a friendly unit has a 35% chance to purge any incapacitating or speed reducing effects.	2
+HERO_BARBARIAN	81	TALENT_RECKLESS_FORCE	Reckless Force	Your units’ maximum damage is increased by 20%, but their minimum damage is decreased by 20%.	3
+HERO_BARBARIAN	166	TALENT_FEROCITY	Ferocity	When one of your troops takes spell damage, its next attack deals 40% increased damage.	3
+HERO_BARBARIAN	168	TALENT_SLAYER	Slayer	Increases all damage to enemy tier 6 units by +25%.	3
+HERO_BARBARIAN	197	TALENT_NATURAL_LEADER	Natural Leader	You can mix troop types without any morale penalty.	3
+HERO_BARBARIAN	198	TALENT_FRESH_START	Fresh Start	You have +25% movement points on the first day of the week.	3
+HERO_BARBARIAN	243	TALENT_PACK_LEADER	Pack Leader	Your wolves have +10 health.	3
+HERO_BARBARIAN	87	TALENT_OUTLAW	Outlaw	Increases your Attack and Defense by +1 for every Conqueror you have defeated in combat.  The bonus is lost if you retreat or surrender.	4
+HERO_BARBARIAN	128	TALENT_JUGGERNAUT	Juggernaut	Reduces the effect of spells that incapacitate your troops by 50%.	4
+HERO_BARBARIAN	142	TALENT_QUICKDRAW	Quickdraw	Your ranged troops have a 20% chance of firing a second projectile attack.	4
+HERO_BARBARIAN	157	TALENT_DESOLATOR	Desolator	Your troops’ attacks have a 50% chance of ignoring 20% of their target’s defense.	4
+HERO_BARBARIAN	158	TALENT_FIRST_STRIKE	First Strike	Your units have +2 speed and +1 initiative for the first round of combat.	4
+HERO_BARBARIAN	199	TALENT_RALLYING_CRY	Rallying Cry	Your troops have +1 Attack per Warcry affecting them.	4
+HERO_BARBARIAN	117	TALENT_CRITICAL_STRIKE	Critical Strike	Your troops have a 20% chance to deal 1.5x damage on attacks.	5
+HERO_BARBARIAN	118	TALENT_WEAPON_MASTER	Weapon Master	The contribution to your Attack from artifacts is increased by 50%.	5
+HERO_KNIGHT	45	TALENT_KNIGHTS_HONOR	Knight’s Honor	+1 Morale	0
+HERO_KNIGHT	0	TALENT_EAGLE_EYE	Eagle Eye	Increases your scouting radius by +1.	1
+HERO_KNIGHT	11	TALENT_BISHOPS_BLESSING	Bishop’s Blessing	Bless is cast on a random stack of your troops at the start of each round, lasting one round.	1
+HERO_KNIGHT	18	TALENT_KING_OF_THE_HILL	King of the Hill	The damage bonus from attacking on high ground is increased by 20%	1
+HERO_KNIGHT	19	TALENT_HOMETOWN_HERO	Hometown Hero	Visiting a Knight town gives +1 Morale for your next battle, for up to 3 days.	1
+HERO_KNIGHT	43	TALENT_UNDERDOG	Underdog	Your troops deal 15% more damage when attacking a unit type with higher base hitpoints.	1
+HERO_KNIGHT	15	TALENT_MACHINIST	Machinist	Your ballista and catapult fire an additional shot.	2
+HERO_KNIGHT	19	TALENT_COMMANDER	Commander	When defending a town in a siege, your primary stats are increased by 10%, and the contribution of your town’s captain (if present) is increased by 50%.	2
+HERO_KNIGHT	36	TALENT_FAMILIAR_GROUND	Familiar Ground	While all of your troops are on native terrain, movement costs 10% less, and your scouting radius is increased by +1.	2
+HERO_KNIGHT	41	TALENT_FIEFDOM	Fiefdom	Earns your kingdom 100 gold per day per hero level.	2
+HERO_KNIGHT	48	TALENT_FORAGING	Foraging	Earns your kingdom an additional +1 wood per day for every lumbermill you control, and +1 ore per day for every ore pit you control.  Does not work if hero is garrisoned.	2
+HERO_KNIGHT	51	TALENT_HOLY_WARD	Holy Ward	Grants your troops +10% magic resistance, and +100% resistance to the Curse spell.	3
+HERO_KNIGHT	82	TALENT_PREPARATION	Preparation	Your troops take 20% less damage from retaliations.	3
+HERO_KNIGHT	89	TALENT_ON_GUARD	On Guard	Your units take 20% less damage on the first round of combat if they have not taken an action yet.	3
+HERO_KNIGHT	110	TALENT_CALL_TO_ARMS	Call to Arms	Weekly creature growth in your Paladin towns is increased by 5/3/2 units for tier 1/2/3 units.	3
+HERO_KNIGHT	2	TALENT_VENGEANCE	Vengeance	Your troops have a 30% chance to perform an additional retaliation.	4
+HERO_KNIGHT	8	TALENT_ARMOURER	Armourer	The contribution to your Defense from artifacts is increased by 40%.	4
+HERO_KNIGHT	13	TALENT_NAVIGATOR	Navigator	Increases your daily movement points by +15%.	4
+HERO_KNIGHT	34	TALENT_VALOR	Valor	Your Paladin troops deal 5% more damage per point of positive morale.	4
+HERO_KNIGHT	1	TALENT_CRUSADE	Crusade	Subsequent attacks against the same stack deal 5% more damage, up to a maximum of 50%.  This effect is doubled against the undead.	5
+HERO_KNIGHT	21	TALENT_REDEMPTION	Redemption	Paladin troops slain in combat have a 15% chance of being instantly resurrected.	5
+HERO_NECROMANCER	151	TALENT_NECROMASTERY	Necromastery	Grants +30 Dark Energy.	0
+HERO_NECROMANCER	178	TALENT_UNHOLY_MIGHT	Unholy Might	Increases the minimum damage of Skeletons in your army by +1.	1
+HERO_NECROMANCER	190	TALENT_MARCH_OF_THE_DEAD	March of the Dead	Increases your daily movement points by +10%.	1
+HERO_NECROMANCER	154	TALENT_BACKSTAB	Backstab	Your troops deal 15% more damage when attacking a unit from behind.	2
+HERO_NECROMANCER	179	TALENT_BONE_COLLECTOR	Bone Collector	Increases the amount of Skeletons raised by 10%, and reduces the Dark Energy cost of raising Skeletons by 25%.	2
+HERO_NECROMANCER	180	TALENT_UNDEAD_HORDE	Undead Horde	Reduces enemy morale by -1 if all of the units in your army are undead.	2
+HERO_NECROMANCER	183	TALENT_SKELETAL_FORTITUDE	Skeletal Fortitude	Increases the health of your Skeletons by +1.	2
+HERO_NECROMANCER	205	TALENT_MINDLESS_SUBSERVIENCE	Mindless Subservience	All troops in your army are no longer affected by morale.	2
+HERO_NECROMANCER	105	TALENT_DEATHS_EMBRACE	Death’s Embrace	Increases the effectiveness of your Death spells by 25%	3
+HERO_NECROMANCER	132	TALENT_VAMPIRE_LORD	Vampire Lord	Increases the Life Drain of Vampires under your command by +25%	3
+HERO_NECROMANCER	188	TALENT_DESTROYER	Destroyer	Allows you to learn and cast level 3 - 5 Destruction spells.	3
+HERO_NECROMANCER	191	TALENT_APOCALYPTIC	Apocalyptic	Increases the effectiveness of your Destruction spells by 15%	3
+HERO_NECROMANCER	238	TALENT_SKELEMANCER	Skelemancer	Doubles your maximum Dark Energy, but you can only raise Skeletons.	3
+HERO_NECROMANCER	152	TALENT_CORPSE_STITCHER	Corpse Stitcher	Increases the conversion rate of living units to Abominations by 50%.	4
+HERO_NECROMANCER	153	TALENT_REANIMATOR	Reanimator	Increases the effectiveness of your Reanimate Dead spell by 50%.	4
+HERO_NECROMANCER	186	TALENT_ONSLAUGHT	Onslaught	Increases the speed of your Skeletons and Bone Wyrms by +2 and their initiative by +1.	4
+HERO_NECROMANCER	192	TALENT_COLD_BLOODED	Cold Blooded	Your undead units have +40% resistance to Frost damage, and are immune to Frost spell slow effects.	4
+HERO_NECROMANCER	104	TALENT_NEGATION	Negation	Grants your troops +40% magic resistance.	5
+HERO_NECROMANCER	138	TALENT_BONECHILL	Bonechill	Your troops' melee attacks reduce the speed of enemy units by -2, and their initiative by -1.	5
+HERO_SORCERESS	20	TALENT_FAERIES_FORTUNE	Faerie’s Fortune	+1 Luck	0
+HERO_SORCERESS	33	TALENT_BLOSSOM_OF_LIFE	Blossom of Life	Casting a beneficial spell on your troops also removes up to 1 negative debuff.	1
+HERO_SORCERESS	35	TALENT_GRASSLANDS_GRACE	Grassland’s Grace	Your Enchantress troops have +1 Initiative on grass terrain, and starting the day on grass terrain gives you a 15% movement bonus.	1
+HERO_SORCERESS	32	TALENT_NATURAL_WARD	Natural Ward	Grants your troops +15% magic resistance.	2
+HERO_SORCERESS	37	TALENT_REPLENISHMENT	Replenishment	Recover 10% of your maximum mana per day.	2
+HERO_SORCERESS	95	TALENT_MENDING	Mending	Your troops are fully healed at the start of a new round.	2
+HERO_SORCERESS	96	TALENT_INSPIRATION	Inspiration	Restore up to 1 mana when one of your troops gets a lucky attack.	2
+HERO_SORCERESS	97	TALENT_LUCKY_FIND	Lucky Find	When picking up resources on the adventure map, there is a 50% chance to find additional resources.	2
+HERO_SORCERESS	52	TALENT_PATH_OF_THE_PIOUS	Path of the Pious	Allows you to learn and cast level 3 - 5 Holy spells	3
+HERO_SORCERESS	53	TALENT_PATH_OF_THE_MAGI	Path of the Magi	Allows you to learn and cast level 3 - 5 Arcane spells	3
+HERO_SORCERESS	109	TALENT_FORTUNE_FAVORS_THE_BOLD	Fortune Favors the Bold	Increases your Luck by +2 when you are the attacking army, but decreases your Luck by -1 when you are the defending army.	3
+HERO_SORCERESS	120	TALENT_FROZEN_HEART	Frozen Heart	Your spells that inflict Frost damage deal 25% more damage.	3
+HERO_SORCERESS	244	TALENT_THUNDEROUS_SKIES	Thunderous Skies	Your Lightning Bolt and Chain Lightning spells deal 20% more damage.	3
+HERO_SORCERESS	22	TALENT_GIFT_OF_THE_GODDESS	Gift of the Goddess	Increases the effectiveness of your Nature spells by 25%	4
+HERO_SORCERESS	99	TALENT_SWIFT_STRIKE	Swift Strike	Your Enchantress troops have +2 speed on the first round of combat.	4
+HERO_SORCERESS	114	TALENT_ENCHANT	Enchant	Convince 10% of wandering monsters to join you if you have the same troop type in your army.	4
+HERO_SORCERESS	115	TALENT_WING_CLIP	Wing Clip	Your ranged attackers reduce the speed of enemy flying units by 2 for 1 round after landing a ranged attack.	4
+HERO_SORCERESS	55	TALENT_FAERIES_FURY	Faerie’s Fury	Lucky strikes deal maximum damage	5
+HERO_SORCERESS	116	TALENT_REVIVE	Revive	When casting a healing spell, excess healing can resurrect dead troops.	5
+HERO_WARLOCK	122	TALENT_POWER_HUNGRY	Power Hungry	Increases your Power by +1.	0
+HERO_WARLOCK	100	TALENT_HEXMASTER	Hexmaster	Casts Curse on a random enemy troop at the start of combat, lasting 3 rounds.	1
+HERO_WARLOCK	143	TALENT_CRIPPLING_FEAR	Crippling Fear	Casting Fear has a 50% chance to also cast Cripple on the affected unit.	1
+HERO_WARLOCK	108	TALENT_ETHER_FEAST	Ether Feast	When an opposing Conqueror casts a spell, gain 30% of the cost of that spell as mana.	2
+HERO_WARLOCK	139	TALENT_DRAGON_ALLEGIANCE	Dragon Allegiance	The cost of recruiting Dragons is reduced by 15%.	2
+HERO_WARLOCK	144	TALENT_SUMMONER	Summoner	Summoned units have 40% more health and deal 20% more damage.	2
+HERO_WARLOCK	147	TALENT_ELDRITCH_KNOWLEDGE	Eldritch Knowledge	Summoned units have 5*Knowledge additional hitpoints.	2
+HERO_WARLOCK	39	TALENT_DEATHBRINGER	Deathbringer	Increases the effectiveness of your Death spells by 10%	3
+HERO_WARLOCK	101	TALENT_THE_DARK_ARTS	The Dark Arts	Allows you to learn and cast level 3 - 5 Death spells.	3
+HERO_WARLOCK	102	TALENT_OBLITERATION	Obliteration	Increases the effectiveness of your Destruction spells by 25%	3
+HERO_WARLOCK	113	TALENT_DRAGONBORNE	Dragonborne	Dragons under your command receive +2 to Attack and Defense, but non-dragon troops receive -1 to Attack and Defense.	3
+HERO_WARLOCK	121	TALENT_DRAGON_MASTER	Dragon Master	Reduces the magic damper of dragons under your command to 40%.	3
+HERO_WARLOCK	137	TALENT_STAND_ALONE	Stand Alone	You deal 20% more spell damage when you have only 1 stack of troops.	3
+HERO_WARLOCK	124	TALENT_POWER_SIPHON	Power Siphon	During combat, reduces the Power of an enemy Conqueror by 10% and increases your Power by the same amount.	4
+HERO_WARLOCK	126	TALENT_PYROMANIAC	Pyromaniac	Your Fire spells deal 20% more damage.	4
+HERO_WARLOCK	131	TALENT_INSANITY	Insanity	Units affected by Berserk have a 40% chance to spread Berserk to units they attack.	4
+HERO_WARLOCK	148	TALENT_UNLEASH_CHAOS	Unleash Chaos	Your Chaos spells deal 20% more damage.	4
+HERO_WARLOCK	98	TALENT_MEGALOMANIA	Megalomania	Your troops deal 2% more damage and take 2% less damage per rare or higher quality item you have equipped.	5
+HERO_WARLOCK	107	TALENT_UNBRIDLED_POWER	Unbridled Power	25% of your Attack and Defense is converted into Power.	5
+HERO_WIZARD	60	TALENT_WIZARDRY	Wizardry	Increases your Knowledge by +1.	0
+HERO_WIZARD	189	TALENT_OVERDRIVE	Overdrive	Increases the speed of your Golems and Constructs by +2, and increases their initiative by +1.	1
+HERO_WIZARD	241	TALENT_ESSENCE_STRIP	Essence Strip	Reduces the magic resistance of enemy troops by up to 10%.	1
+HERO_WIZARD	129	TALENT_DEBILITATE	Debilitate	Spells that incapacitate units last an additional round.	2
+HERO_WIZARD	160	TALENT_MYSTICISM	Mysticism	When fighting an enemy Conqueror, restores 5% of your maximum mana at the start of a new combat round.	2
+HERO_WIZARD	187	TALENT_GENIE_IN_A_BOTTLE	Genie in a Bottle	Your Genies can cast up to 3 beneficial spells.	2
+HERO_WIZARD	194	TALENT_EFFICIENCY	Efficiency	Reduces the mana cost of all spells by 15%.	2
+HERO_WIZARD	195	TALENT_VERSATILITY	Versatility	Reduces the cost of casting non-Arcane spells by 15%.	2
+HERO_WIZARD	123	TALENT_SORCERERS_SWIFTNESS	Sorcerer’s Swiftness	Increases your Spell Haste by 10%.	3
+HERO_WIZARD	161	TALENT_RELATIVITY	Relativity	Reduces the cost of casting Time Dilation by 50%.	3
+HERO_WIZARD	169	TALENT_HIGH_VOLTAGE	High Voltage	Reduces the loss of damage per jump of your Chain Lightning spell from 50% to 35%.	3
+HERO_WIZARD	196	TALENT_ARCANE_AFFINITY	Arcane Affinity	Increases the effectiveness of your Arcane spells by 20%.	3
+HERO_WIZARD	130	TALENT_WISDOM	Wisdom	Allows you to learn any spell regardless of school or level.	4
+HERO_WIZARD	159	TALENT_INNERVATE	Innervate	Casting a beneficial spell on your troops gives them +1 initiative for 2 rounds.	4
+HERO_WIZARD	164	TALENT_GROUNDING	Grounding	Your troops have 60% chance to avoid jumps from your Chain Lightning.	4
+HERO_WIZARD	171	TALENT_TITANIC	Titanic	Titans under your command have +50 hitpoints.	4
+HERO_WIZARD	176	TALENT_WANDSLINGER	Wandslinger	Increases your Spell Haste by 40%.	5
+HERO_WIZARD	193	TALENT_SPELL_MASTERY	Spell Mastery	Increases the effectiveness of all spells by 40%.	5

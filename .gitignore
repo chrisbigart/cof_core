@@ -1,0 +1,32 @@
+# Qt/qmake build files
+*.o
+*.obj
+*.exe
+*.dll
+*.so
+*.a
+*.lib
+*.ncb
+*.sdf
+*.suo
+*.user
+*.pch
+*.ilk
+*.idb
+*.res
+*.aps
+Makefile*
+.qmake.stash
+.qmake.cache
+moc_*
+ui_*
+qrc_*
+build-*
+*.pro.user
+*.pro.user.*
+*.autosave
+*.log
+
+# OS-specific
+.DS_Store
+Thumbs.db

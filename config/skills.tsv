@@ -1,0 +1,22 @@
+92	SKILL_HOLY_MAGIC	Holy Magic	Allows you to learn level {3/4/5/5/5} holy magic spells.  Increases the effectiveness of holy spells by {10/15/20/25/30}%.	6		1	4	1	4
+124	SKILL_ARCANE_MAGIC	Arcane Magic	Allows you to learn level {3/4/5/5/5} arcane magic spells.  Increases the effectiveness of arcane spells by {10/15/20/25/30}%.	2		2	3	7	9
+60	SKILL_DESTRUCTION_MAGIC	Destruction Magic	Allows you to learn level {3/4/5/5/5} destruction magic spells.  Increases the effectiveness of destruction spells by {10/15/20/25/30}%.			8	1	9	3
+76	SKILL_DEATH_MAGIC	Death Magic	Allows you to learn level {3/4/5/5/5} death magic spells.  Increases the effectiveness of death spells by {10/15/20/25/30}%.			6	1	4	1
+108	SKILL_NATURE_MAGIC	Nature Magic	Allows you to learn level {3/4/5/5/5} nature magic spells.  Increases the effectiveness of nature spells by {10/15/20/25/30}%.				6	1	5
+125	SKILL_INTELLIGENCE	Intelligence	Increases your maximum mana by {20/25/30/35/40}%.  Allows you to trade spells up to level {2/3/4/5/5} with other conquerors.  In addition, allows you to consume spell scrolls.	1		3	6	6	8
+46	SKILL_SORCERY	Sorcery	Increases the damage done by your spells by {15/20/25/30/35}%.	1		4	4	9	8
+110	SKILL_SPELL_PENETRATION	Disruption	Reduces the value of enemy troops’ spell resistance by up to {10/15/20/25/30}%.	1		1	3	4	7
+30	SKILL_LOGISTICS	Logistics	Increases your maximum daily movement range by {5/10/15/20/25}%.	6	9	4	2	2	2
+78	SKILL_PATHFINDING	Pathfinding	Reduces the movement penalty for rough terrain by {50/60/70/80/90}%.  Picking up objects no longer costs movement points.	7	9	3	3	1	2
+126	SKILL_NECROMANCY	Necromancy	Allows you to raise up to {15/20/25/30/35}% of enemy living units slain in combat as their undead equivalent.  Grants you {10/15/20/25/30} * (Knowledge + Power) Dark Energy.			10			
+61	SKILL_SCOUTING	Scouting	Increases your view radius by {1/2/3/4/5} and your observation radius by {3/4/5/6/7}.  Provides more detailed information about enemy conquerors, towns, and various map items.	7	7	3	4	2	4
+77	SKILL_LUCK	Luck	Increases your base Luck by {1/2/3/4/5} and allows you to benefit (with diminishing returns) from Luck above the maximum value.  Increases the damage bonus of lucky attacks to {70/80/90/100/110}% more damage.	6	3	3	9	1	2
+79	SKILL_WAR_MACHINES	War Machines	Grants you manual control over your ballista and catapult, and allows them to fire twice per turn.  In addition, causes your ballista to deal {20/30/40/50/60}% more damage.	8	6	3	2	1	1
+44	SKILL_RESISTANCE	Resistance	Increases your troops’ spell resistance by {10/15/20/25/30}%.	5	9	4	3	2	1
+109	SKILL_LEADERSHIP	Leadership	Increases your base Morale by +{1/2/3/4/5} and allows you to benefit (with diminishing returns) from morale above the maximum value.	9	7		4	1	3
+45	SKILL_TREACHERY	Treachery	Reduces enemy luck by -{1/1/2/3/4} and enemy morale by -{1/1/1/2/3}.  Makes enemies scouting your conqueror or recently visited towns give less accurate information.	1	5	7	2	9	2
+111	SKILL_SPELL_HASTE	Alacrity	Increases the frequency at which you can cast spells in combat by {10/15/20/25/30}%.	1		2	5	7	9
+94	SKILL_ARCHERY	Archery	Increases the damage done by your ranged units by {10/15/20/25/30}%, and reduces the damage penalty from attacking at range and into castle walls by {10/20/30/40/50}%. 	9	8	5	6	2	2
+62	SKILL_OFFENSE	Offense	Your troops’ melee attacks deal {10/15/20/25/30}% more damage.	7	9	4	3	2	1
+63	SKILL_DEFENSE	Defense	Your troops take {5/10/15/20/25}% less damage from melee and ranged attacks.	9	7	4	3	3	1
+93	SKILL_SAILING	Sailing	Your movement at sea is increased by {75/100/125/150/175}%, and the penalty for boarding and disembarking ships is reduced by {10/20/30/40/50}%.  In addition, your stats are increased by {5/10/15/20/25}% during sea battles, and you move over beach terrain with no penalty.	6	7	5	7	5	3
