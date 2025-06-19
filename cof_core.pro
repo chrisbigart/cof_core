@@ -9,12 +9,14 @@ CONFIG += qt debug console
 CONFIG -= app_bundle
 QT += core network gui
 CONFIG += c++17
+CONFIG += link_pkgconfig
+PKGCONFIG += lua5.4
 #CONFIG += no_autoqmake
 
 MOC_DIR = moc
 
 #LIBS += -L/opt/homebrew/opt/lua/lib
-#LIBS += -llua
+LIBS += -llua5.4
 
 #DEFINES += QT_DISABLE_DEPRECATED_BEFORE=0x060000    # disables all the APIs deprecated before Qt 6.0.0
 
