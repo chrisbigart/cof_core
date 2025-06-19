@@ -487,7 +487,7 @@ struct battlefield_t {
 	std::pair<uint32_t, uint16_t> calculate_healing_to_stack(hero_t* caster, spell_e spell_id, uint32_t healing, battlefield_unit_t& unit, bool can_resurrect);
 	std::pair<uint32_t, uint16_t> apply_healing_to_stack(uint32_t healing, battlefield_unit_t& unit, bool can_resurrect, bool simulate = false);
 	
-	uint cast_spell(hero_t* caster, spell_e spell_id, int target_x = -1, int target_y = -1, battlefield_unit_t* target = nullptr);
+        spell_result_e cast_spell(hero_t* caster, spell_e spell_id, int target_x = -1, int target_y = -1, battlefield_unit_t* target = nullptr);
 	std::vector<battlefield_unit_t*> cast_spell_on_random_troops(army_t::battlefield_unit_group_t& troops, spell_e spell_id, int duration, int number_of_troops_affected = 1);
 	bool can_hero_cast_spell(hero_t* caster, spell_e spell_id);
 	bool restore_hero_mana(hero_t* hero, int mana_to_restore, talent_e talent = TALENT_NONE);
