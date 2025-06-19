@@ -3,6 +3,7 @@
 #include <cctype>
 #include <string>
 #include <vector>
+#include <cstdint>
 
 typedef unsigned int uint;
 //make sure the integer type is big enough to store our battlefield coordinates
