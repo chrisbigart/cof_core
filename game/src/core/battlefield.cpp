@@ -3100,6 +3100,10 @@ battlefield_unit_t* battlefield_t::get_active_unit() {
 	return (unit_move_queue.size() ? unit_move_queue[0] : nullptr);
 }
 
+const battlefield_unit_t* battlefield_t::get_active_unit() const {
+	return const_cast<battlefield_t*>(this)->get_active_unit();
+}
+
 player_e battlefield_t::get_player_of_active_unit() {
 	player_e player = PLAYER_NONE;
 

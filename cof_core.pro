@@ -58,3 +58,18 @@ SOURCES += 	main.cpp \
             game/src/core/map_file.cpp \
             game/src/core/town.cpp
 
+HEADERS += game/src/rl/battle_sim.h \
+           game/src/rl/battle_session.h \
+           game/src/rl/battle_python_bindings.h
+SOURCES += game/src/rl/battle_sim.cpp \
+           game/src/rl/battle_session.cpp \
+           game/src/rl/battle_python_bindings.cpp
+
+LIBCOF_TARGET = $$OUT_PWD/libcof_core.so
+
+libcof_core.target = $$LIBCOF_TARGET
+libcof_core.depends = $(OBJECTS)
+libcof_core.commands = $$QMAKE_CXX -shared -o $$LIBCOF_TARGET $(OBJECTS) $(LIBS)
+
+QMAKE_EXTRA_TARGETS += libcof_core
+POST_TARGETDEPS += $$LIBCOF_TARGET

@@ -510,7 +510,8 @@ struct battlefield_t {
 		
 	void compute_next_unit_to_move();
 	bool recompute_unit_move_queue();
-	battlefield_unit_t* get_active_unit();
+        battlefield_unit_t* get_active_unit();
+        const battlefield_unit_t* get_active_unit() const;
 	player_e get_player_of_active_unit();
 
 	bool is_attackers_turn();
