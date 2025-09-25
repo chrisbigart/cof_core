@@ -30,3 +30,6 @@ build-*
 # OS-specific
 .DS_Store
 Thumbs.db
+libtorch/
+libtorch-shared-with-deps-latest.zip
+cof_core
