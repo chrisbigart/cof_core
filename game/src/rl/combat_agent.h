@@ -39,7 +39,7 @@ public:
         const CombatPolicy& policy() const { return policy_network; }
 
 private:
-        mutable CombatPolicy policy_network;
+        mutable CombatPolicy policy_network{nullptr};
         torch::Device device;
 };
 

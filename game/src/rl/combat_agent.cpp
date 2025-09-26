@@ -3,6 +3,7 @@
 #include "rl/combat_observation.h"
 
 #include <algorithm>
+#include <memory>
 #include <utility>
 
 namespace rl {
@@ -23,13 +24,13 @@ CombatPolicyImpl::CombatPolicyImpl(std::size_t input_dim, std::size_t action_dim
                 auto layer = register_module(
                         "fc" + std::to_string(index + 1),
                         torch::nn::Linear(static_cast<long>(previous_dim), static_cast<long>(hidden_dim)));
-                hidden_layers.push_back(layer);
+                hidden_layers.push_back(std::move(layer));
 
                 if(this->options.use_layer_norm) {
                         auto norm = register_module(
                                 "ln" + std::to_string(index + 1),
                                 torch::nn::LayerNorm(torch::nn::LayerNormOptions({static_cast<long>(hidden_dim)})));
-                        layer_norms.push_back(norm);
+                        layer_norms.push_back(std::move(norm));
                 }
 
                 previous_dim = hidden_dim;
@@ -57,7 +58,7 @@ combat_agent_t::combat_agent_t(std::size_t observation_dim,
                                std::size_t action_dim,
                                const CombatPolicyOptions& options,
                                torch::Device device)
-        : policy_network(CombatPolicy(observation_dim, action_dim, options))
+        : policy_network(std::make_shared<CombatPolicyImpl>(observation_dim, action_dim, options))
         , device(device) {
         policy_network->to(device);
 }
