@@ -396,7 +396,7 @@ int main(int argc, char** argv) {
         rl::combat::combat_environment_t environment(game_instance, side);
 
         const auto hidden_layers = resolve_hidden_layers(options.hidden_layers);
-        rl::combat::CombatPolicyOptions policy_options;
+        rl::combat::CombatNetworkOptions policy_options;
         policy_options.hidden_layers = hidden_layers;
         policy_options.use_layer_norm = options.layer_norm;
 

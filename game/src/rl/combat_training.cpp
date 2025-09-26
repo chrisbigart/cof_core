@@ -105,11 +105,11 @@ dqn_trainer_t::dqn_trainer_t(combat_environment_t& environment,
         if(this->config.target_update_frequency == 0)
                 throw std::invalid_argument("Target update frequency must be positive");
 
-        this->policy_agent->policy()->train();
-        this->target_agent->policy()->eval();
+        this->policy_agent->model()->train();
+        this->target_agent->model()->eval();
 
         optimizer = std::make_unique<torch::optim::Adam>(
-                this->policy_agent->policy()->parameters(),
+                this->policy_agent->model()->parameters(),
                 torch::optim::AdamOptions(this->config.learning_rate));
 
         update_target_network();
@@ -210,11 +210,11 @@ int64_t dqn_trainer_t::select_action(const torch::Tensor& state,
                 return sample_random_action(legal_mask);
 
         torch::NoGradGuard guard;
-        policy_agent->policy()->eval();
-        auto q_values = policy_agent->policy()->forward(state.unsqueeze(0)).squeeze(0);
+        policy_agent->model()->eval();
+        auto q_values = policy_agent->model()->forward(state.unsqueeze(0)).squeeze(0);
         q_values = apply_legal_mask(q_values, legal_mask);
         const int64_t action_index = q_values.argmax().item<int64_t>();
-        policy_agent->policy()->train();
+        policy_agent->model()->train();
         return action_index;
 }
 
@@ -312,13 +312,13 @@ std::optional<float> dqn_trainer_t::optimise_model() {
         auto next_states = torch::stack(next_state_batch);
         auto dones = torch::tensor(done_batch, torch::TensorOptions().dtype(torch::kFloat32).device(device));
 
-        auto q_values = policy_agent->policy()->forward(states);
+        auto q_values = policy_agent->model()->forward(states);
         auto action_q = q_values.gather(1, actions.unsqueeze(1)).squeeze(1);
 
         torch::Tensor targets;
         {
                 torch::NoGradGuard guard;
-                auto next_q_values = target_agent->policy()->forward(next_states);
+                auto next_q_values = target_agent->model()->forward(next_states);
                 next_q_values = apply_legal_mask_batch(next_q_values, next_masks);
                 auto max_next_q = std::get<0>(next_q_values.max(1));
                 targets = rewards + config.discount * (1.0F - dones) * max_next_q;
@@ -330,7 +330,7 @@ std::optional<float> dqn_trainer_t::optimise_model() {
         loss.backward();
 
         if(config.gradient_clip_norm)
-                torch::nn::utils::clip_grad_norm_(policy_agent->policy()->parameters(), *config.gradient_clip_norm);
+                torch::nn::utils::clip_grad_norm_(policy_agent->model()->parameters(), *config.gradient_clip_norm);
 
         optimizer->step();
 
@@ -340,14 +340,14 @@ std::optional<float> dqn_trainer_t::optimise_model() {
 void dqn_trainer_t::update_target_network() {
         torch::NoGradGuard guard;
         torch::serialize::OutputArchive archive;
-        policy_agent->policy()->save(archive);
+        policy_agent->model()->save(archive);
         std::stringstream stream;
         archive.save_to(stream);
 
         torch::serialize::InputArchive input;
         input.load_from(stream);
-        target_agent->policy()->load(input);
-        target_agent->policy()->eval();
+        target_agent->model()->load(input);
+        target_agent->model()->eval();
 }
 
 } // namespace combat

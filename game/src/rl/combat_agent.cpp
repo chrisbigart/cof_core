@@ -9,57 +9,30 @@
 namespace rl {
 namespace combat {
 
-CombatPolicyImpl::CombatPolicyImpl(std::size_t input_dim, std::size_t action_dim, CombatPolicyOptions options)
-        : options(std::move(options)) {
-        if(this->options.hidden_layers.empty())
-                this->options.hidden_layers = {256, 128};
+combat_agent_t::combat_agent_t(std::size_t observation_dim,
+                               std::size_t action_dim,
+                               const CombatNetworkOptions& options,
+                               torch::Device device)
+        : device(device) {
+        auto network = torch::nn::Sequential();
 
-        hidden_layers.reserve(this->options.hidden_layers.size());
-        if(this->options.use_layer_norm)
-                layer_norms.reserve(this->options.hidden_layers.size());
+        std::vector<std::size_t> hidden_layers = options.hidden_layers;
+        if(hidden_layers.empty())
+                hidden_layers = {256, 128};
 
-        std::size_t previous_dim = input_dim;
-        for(std::size_t index = 0; index < this->options.hidden_layers.size(); ++index) {
-                const std::size_t hidden_dim = this->options.hidden_layers[index];
-                auto layer = register_module(
-                        "fc" + std::to_string(index + 1),
-                        torch::nn::Linear(static_cast<long>(previous_dim), static_cast<long>(hidden_dim)));
-                hidden_layers.push_back(std::move(layer));
-
-                if(this->options.use_layer_norm) {
-                        auto norm = register_module(
-                                "ln" + std::to_string(index + 1),
-                                torch::nn::LayerNorm(torch::nn::LayerNormOptions({static_cast<long>(hidden_dim)})));
-                        layer_norms.push_back(std::move(norm));
-                }
-
+        long previous_dim = static_cast<long>(observation_dim);
+        for(std::size_t index = 0; index < hidden_layers.size(); ++index) {
+                const auto hidden_dim = static_cast<long>(hidden_layers[index]);
+                network->push_back(torch::nn::Linear(previous_dim, hidden_dim));
+                if(options.use_layer_norm)
+                        network->push_back(torch::nn::LayerNorm(torch::nn::LayerNormOptions({hidden_dim})));
+                network->push_back(torch::nn::Functional(torch::relu));
                 previous_dim = hidden_dim;
         }
 
-        output_layer = register_module(
-                "output",
-                torch::nn::Linear(static_cast<long>(previous_dim), static_cast<long>(action_dim)));
-}
+        network->push_back(torch::nn::Linear(previous_dim, static_cast<long>(action_dim)));
 
-torch::Tensor CombatPolicyImpl::forward(torch::Tensor input) {
-        auto activation = input;
-        for(std::size_t index = 0; index < hidden_layers.size(); ++index) {
-                activation = hidden_layers[index]->forward(activation);
-                if(options.use_layer_norm && index < layer_norms.size())
-                        activation = layer_norms[index]->forward(activation);
-                activation = torch::relu(activation);
-        }
-
-        activation = output_layer->forward(activation);
-        return activation;
-}
-
-combat_agent_t::combat_agent_t(std::size_t observation_dim,
-                               std::size_t action_dim,
-                               const CombatPolicyOptions& options,
-                               torch::Device device)
-        : policy_network(std::make_shared<CombatPolicyImpl>(observation_dim, action_dim, options))
-        , device(device) {
+        policy_network = network;
         policy_network->to(device);
 }
 
