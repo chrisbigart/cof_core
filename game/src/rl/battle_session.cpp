@@ -1,5 +1,9 @@
 #include "rl/battle_session.h"
 
+#include "rl/combat_actions.h"
+
+#include "core/adventure_map.h"
+
 #include <algorithm>
 #include <cassert>
 
@@ -73,6 +77,61 @@ battle_result_e combat_session_t::step() {
         return simulator.step();
 }
 
+namespace {
+battlefield_unit_t* select_best_stack(army_t::battlefield_unit_group_t& troops) {
+        battlefield_unit_t* best = nullptr;
+        for(auto& troop : troops) {
+                if(troop.unit_type == UNIT_UNKNOWN || troop.stack_size == 0 || troop.unit_health == 0)
+                        continue;
+                if(!best || troop.stack_size > best->stack_size)
+                        best = &troop;
+        }
+        return best;
+}
+
+bool can_cast_from_side(const battlefield_t& battlefield, bool attacker_turn) {
+        if(attacker_turn)
+                return battlefield.attacking_hero && !battlefield.attacking_hero_used_cast;
+        return battlefield.defending_hero && !battlefield.defending_hero_used_cast;
+}
+
+bool cast_spell_action(battlefield_t& battlefield,
+                       bool attacker_turn,
+                       combat_action_type_t action_type) {
+        auto definition = lookup_spell_action(action_type);
+        if(!definition)
+                return false;
+
+        hero_t* caster = attacker_turn ? battlefield.attacking_hero : battlefield.defending_hero;
+        if(!caster || !caster->knows_spell(definition->spell))
+                return false;
+
+        if(!can_cast_from_side(battlefield, attacker_turn))
+                return false;
+
+        battlefield_unit_t* target = nullptr;
+        switch(definition->target) {
+        case spell_target_type_t::FRIENDLY:
+                target = select_best_stack(attacker_turn ? battlefield.attacking_army.troops : battlefield.defending_army.troops);
+                break;
+        case spell_target_type_t::ENEMY:
+                target = select_best_stack(attacker_turn ? battlefield.defending_army.troops : battlefield.attacking_army.troops);
+                break;
+        case spell_target_type_t::NONE:
+                break;
+        }
+
+        if(definition->target != spell_target_type_t::NONE && !target)
+                return false;
+
+        const int target_x = target ? target->x : -1;
+        const int target_y = target ? target->y : -1;
+        auto result = battlefield.cast_spell(caster, definition->spell, target_x, target_y, target);
+        return result == SPELL_RESULT_OK;
+}
+
+} // namespace
+
 bool combat_session_t::apply_action(const combat_action_spec_t& action) {
         auto& battlefield_instance = simulator.battlefield();
         auto* active_unit = battlefield_instance.get_active_unit();
@@ -86,6 +145,13 @@ bool combat_session_t::apply_action(const combat_action_spec_t& action) {
                 return battlefield_instance.defend_unit(active_unit);
         case combat_action_type_t::AUTO_RESOLVE:
                 return battlefield_instance.auto_move_troop();
+        case combat_action_type_t::CAST_BLESS:
+        case combat_action_type_t::CAST_CURSE:
+        case combat_action_type_t::CAST_HASTE:
+        case combat_action_type_t::CAST_SLOW:
+        case combat_action_type_t::CAST_SHIELD:
+        case combat_action_type_t::CAST_LIGHTNING_BOLT:
+                return cast_spell_action(battlefield_instance, active_unit->is_attacker, action.type);
         default:
                 break;
         }

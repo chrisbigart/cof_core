@@ -1,6 +1,7 @@
 #pragma once
 
 #include "rl/battle_session.h"
+#include "rl/combat_actions.h"
 #include "rl/combat_observation.h"
 
 #include <tuple>
@@ -9,7 +10,7 @@
 namespace rl {
 namespace combat {
 
-constexpr std::size_t ACTION_COUNT = 3;
+constexpr std::size_t ACTION_COUNT = static_cast<std::size_t>(combat_action_type_t::COUNT);
 
 enum class controlled_side_t { ATTACKER, DEFENDER };
 

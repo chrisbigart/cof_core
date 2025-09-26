@@ -50,6 +50,13 @@ enum class combat_action_type_t : uint8_t {
         WAIT = 0,
         DEFEND = 1,
         AUTO_RESOLVE = 2,
+        CAST_BLESS = 3,
+        CAST_CURSE = 4,
+        CAST_HASTE = 5,
+        CAST_SLOW = 6,
+        CAST_SHIELD = 7,
+        CAST_LIGHTNING_BOLT = 8,
+        COUNT = 9,
 };
 
 struct combat_action_spec_t {

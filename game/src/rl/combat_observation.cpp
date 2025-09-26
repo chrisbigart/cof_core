@@ -83,6 +83,16 @@ combat_observation_t capture_observation(const combat_session_t& session) {
         output.defender_morale = static_cast<int16_t>(defender.get_morale());
         output.attacker_luck = static_cast<int16_t>(attacker.get_luck());
         output.defender_luck = static_cast<int16_t>(defender.get_luck());
+        output.attacker_can_cast_spell = battlefield.attacking_hero && !battlefield.attacking_hero_used_cast
+                                         && battlefield.attacking_hero->mana > 0;
+        output.defender_can_cast_spell = battlefield.defending_hero && !battlefield.defending_hero_used_cast
+                                         && battlefield.defending_hero->mana > 0;
+
+        for(std::size_t index = 0; index < SPELL_ACTION_COUNT; ++index) {
+                const auto& definition = kSpellActions[index];
+                output.attacker_spellbook[index] = attacker.knows_spell(definition.spell) ? 1 : 0;
+                output.defender_spellbook[index] = defender.knows_spell(definition.spell) ? 1 : 0;
+        }
 
         output.attacker_stacks.fill(stack_observation_t());
         output.defender_stacks.fill(stack_observation_t());
@@ -141,6 +151,13 @@ torch::Tensor observation_to_tensor(const combat_observation_t& observation, tor
         features.push_back(static_cast<float>(observation.defender_luck));
         features.push_back(static_cast<float>(observation.attacker_stack_count));
         features.push_back(static_cast<float>(observation.defender_stack_count));
+        features.push_back(observation.attacker_can_cast_spell ? 1.0F : 0.0F);
+        features.push_back(observation.defender_can_cast_spell ? 1.0F : 0.0F);
+
+        for(auto value : observation.attacker_spellbook)
+                features.push_back(static_cast<float>(value));
+        for(auto value : observation.defender_spellbook)
+                features.push_back(static_cast<float>(value));
 
         for(const auto& stack : observation.attacker_stacks)
                 append_stack_features(features, stack);

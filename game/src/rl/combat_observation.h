@@ -1,6 +1,7 @@
 #pragma once
 
 #include "rl/battle_session.h"
+#include "rl/combat_actions.h"
 
 #include <array>
 #include <cstddef>
@@ -19,7 +20,7 @@ namespace combat {
 
 constexpr std::size_t MAX_ARMY_TROOPS = 16;
 constexpr std::size_t STACK_FEATURES = 15;
-constexpr std::size_t GLOBAL_FEATURES = 16;
+constexpr std::size_t GLOBAL_FEATURES = 18 + (2 * SPELL_ACTION_COUNT);
 
 struct stack_observation_t {
         uint16_t unit_type = 0;
@@ -56,6 +57,10 @@ struct combat_observation_t {
         int16_t defender_luck = 0;
         uint8_t attacker_stack_count = 0;
         uint8_t defender_stack_count = 0;
+        bool attacker_can_cast_spell = false;
+        bool defender_can_cast_spell = false;
+        std::array<uint8_t, SPELL_ACTION_COUNT> attacker_spellbook{};
+        std::array<uint8_t, SPELL_ACTION_COUNT> defender_spellbook{};
         std::array<stack_observation_t, MAX_ARMY_TROOPS> attacker_stacks{};
         std::array<stack_observation_t, MAX_ARMY_TROOPS> defender_stacks{};
 };

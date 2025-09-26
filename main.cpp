@@ -1,10 +1,12 @@
 #include "core/game.h"
 #include "core/game_config.h"
+#include "rl/combat_actions.h"
 #include "rl/combat_environment.h"
 #include "rl/combat_observation.h"
 #include "rl/combat_training.h"
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <cctype>
 #include <iomanip>
@@ -220,52 +222,101 @@ rl::combat::combat_scenario_spec_t build_default_scenario(std::mt19937& rng,
         using rl::combat::hero_loadout_spec_t;
         using rl::combat::troop_stack_spec_t;
 
-        const int attacker_unit = get_option_or_default(options, "attacker_unit_type", 16);
-        const int defender_unit = get_option_or_default(options, "defender_unit_type", 16);
-        const int attacker_base_stack = get_option_or_default(options, "attacker_stack_size", 20);
-        const int defender_base_stack = get_option_or_default(options, "defender_stack_size", 20);
-        const int variation = get_option_or_default(options, "stack_size_variation", 0);
+        const std::array<unit_type_e, 12> unit_pool = {
+                UNIT_INFANTRYMAN, UNIT_ARCHER,    UNIT_CAVALIER,  UNIT_CRUSADER,
+                UNIT_VAMPIRE,     UNIT_LICH,      UNIT_MINOTAUR,  UNIT_MANTICORE,
+                UNIT_PIXIE,       UNIT_ELF,       UNIT_DRUID,     UNIT_TITAN,
+        };
+        const std::array<hero_class_e, 6> hero_classes = {
+                HERO_KNIGHT, HERO_BARBARIAN, HERO_NECROMANCER, HERO_SORCERESS, HERO_WARLOCK, HERO_WIZARD,
+        };
+        const std::array<battlefield_environment_e, 6> environments = {
+                BATTLEFIELD_ENVIRONMENT_GRASS,
+                BATTLEFIELD_ENVIRONMENT_DIRT,
+                BATTLEFIELD_ENVIRONMENT_DESERT,
+                BATTLEFIELD_ENVIRONMENT_SNOW,
+                BATTLEFIELD_ENVIRONMENT_SWAMP,
+                BATTLEFIELD_ENVIRONMENT_WASTELAND,
+        };
 
-        std::uniform_int_distribution<int> delta_distribution(-variation, variation);
-        const int attacker_delta = variation > 0 ? delta_distribution(rng) : 0;
-        const int defender_delta = variation > 0 ? delta_distribution(rng) : 0;
+        const int min_stack_size = get_option_or_default(options, "min_stack_size", 8);
+        const int max_stack_size = std::max(min_stack_size, get_option_or_default(options, "max_stack_size", 40));
+        const int attacker_min_stacks = std::max(1, get_option_or_default(options, "attacker_min_stacks", 1));
+        const int attacker_max_stacks = std::max(attacker_min_stacks, get_option_or_default(options, "attacker_max_stacks", 3));
+        const int defender_min_stacks = std::max(1, get_option_or_default(options, "defender_min_stacks", 1));
+        const int defender_max_stacks = std::max(defender_min_stacks, get_option_or_default(options, "defender_max_stacks", 3));
+        const int min_spells = std::max(1, get_option_or_default(options, "min_spells", 2));
+        const int max_spells = std::max(min_spells, get_option_or_default(options, "max_spells", static_cast<int>(rl::combat::SPELL_ACTION_COUNT)));
 
-        const int attacker_stack = std::max(1, attacker_base_stack + attacker_delta);
-        const int defender_stack = std::max(1, defender_base_stack + defender_delta);
+        std::uniform_int_distribution<int> stack_size_dist(min_stack_size, max_stack_size);
+        std::uniform_int_distribution<int> attacker_stack_count_dist(attacker_min_stacks, attacker_max_stacks);
+        std::uniform_int_distribution<int> defender_stack_count_dist(defender_min_stacks, defender_max_stacks);
+        std::uniform_int_distribution<std::size_t> unit_dist(0, unit_pool.size() - 1);
+        std::uniform_int_distribution<std::size_t> class_dist(0, hero_classes.size() - 1);
+        std::uniform_int_distribution<int> level_dist(1, 5);
+        std::uniform_int_distribution<int> stat_dist(1, 6);
+        std::uniform_int_distribution<int> mana_bonus_dist(10, 30);
+
+        auto populate_spellbook = [&](hero_loadout_spec_t& hero) {
+                std::array<spell_e, rl::combat::SPELL_ACTION_COUNT> spells{};
+                for(std::size_t index = 0; index < rl::combat::SPELL_ACTION_COUNT; ++index)
+                        spells[index] = rl::combat::kSpellActions[index].spell;
+
+                std::shuffle(spells.begin(), spells.end(), rng);
+                const int spell_count = std::min(static_cast<int>(rl::combat::SPELL_ACTION_COUNT),
+                                                 std::uniform_int_distribution<int>(min_spells, max_spells)(rng));
+                hero.spellbook.assign(spells.begin(), spells.begin() + spell_count);
+        };
+
+        auto populate_army = [&](hero_loadout_spec_t& hero, bool attacker_side, int override_unit_type) {
+                hero.troops.fill(troop_stack_spec_t());
+                const int stack_slots = attacker_side ? attacker_stack_count_dist(rng) : defender_stack_count_dist(rng);
+                for(int slot = 0; slot < stack_slots && slot < static_cast<int>(hero.troops.size()); ++slot) {
+                        unit_type_e unit = (override_unit_type >= 0 && slot == 0)
+                                                   ? static_cast<unit_type_e>(override_unit_type)
+                                                   : unit_pool[unit_dist(rng)];
+                        const int size = std::max(1, stack_size_dist(rng));
+                        hero.troops[slot] = troop_stack_spec_t{unit, static_cast<uint16_t>(size)};
+                }
+        };
+
+        auto configure_hero = [&](hero_loadout_spec_t& hero, bool attacker_side) {
+                hero.hero_class = hero_classes[class_dist(rng)];
+                hero.level = static_cast<uint8_t>(level_dist(rng));
+                hero.attack = static_cast<uint8_t>(stat_dist(rng));
+                hero.defense = static_cast<uint8_t>(stat_dist(rng));
+                hero.power = static_cast<uint8_t>(stat_dist(rng));
+                hero.knowledge = static_cast<uint8_t>(std::max(1, stat_dist(rng)));
+                hero.mana = static_cast<uint16_t>(hero.knowledge * 10 + mana_bonus_dist(rng));
+                hero.human_controlled = true;
+                populate_spellbook(hero);
+                const int override_unit = attacker_side ? get_option_or_default(options, "attacker_unit_type", -1)
+                                                        : get_option_or_default(options, "defender_unit_type", -1);
+                populate_army(hero, attacker_side, override_unit);
+        };
 
         hero_loadout_spec_t attacker;
         attacker.player = PLAYER_1;
-        attacker.hero_class = HERO_KNIGHT;
         attacker.hero_id = 1;
         attacker.name = "RL Attacker";
-        attacker.level = 1;
-        attacker.attack = 2;
-        attacker.defense = 2;
-        attacker.power = 1;
-        attacker.knowledge = 1;
-        attacker.mana = 12;
-        attacker.human_controlled = true;
-        attacker.troops[0] = troop_stack_spec_t{static_cast<unit_type_e>(attacker_unit), static_cast<uint16_t>(attacker_stack)};
+        configure_hero(attacker, true);
 
         hero_loadout_spec_t defender;
         defender.player = PLAYER_2;
-        defender.hero_class = HERO_KNIGHT;
         defender.hero_id = 2;
         defender.name = "RL Defender";
-        defender.level = 1;
-        defender.attack = 2;
-        defender.defense = 2;
-        defender.power = 1;
-        defender.knowledge = 1;
-        defender.mana = 12;
-        defender.human_controlled = true;
-        defender.troops[0] = troop_stack_spec_t{static_cast<unit_type_e>(defender_unit), static_cast<uint16_t>(defender_stack)};
+        configure_hero(defender, false);
 
         combat_scenario_spec_t scenario;
         scenario.attacker = attacker;
         scenario.defender = defender;
-        scenario.environment = static_cast<battlefield_environment_e>(
-                get_option_or_default(options, "environment", static_cast<int>(BATTLEFIELD_ENVIRONMENT_GRASS)));
+        const int environment_override = get_option_or_default(options, "environment", -1);
+        if(environment_override >= 0) {
+                scenario.environment = static_cast<battlefield_environment_e>(environment_override);
+        } else {
+                std::uniform_int_distribution<std::size_t> environment_dist(0, environments.size() - 1);
+                scenario.environment = environments[environment_dist(rng)];
+        }
         scenario.quick_combat = get_bool_option_or_default(options, "quick_combat", false);
         scenario.is_deathmatch = get_bool_option_or_default(options, "is_deathmatch", false);
         return scenario;
@@ -302,6 +353,58 @@ rl::combat::action_mask_t legal_action_mask(const rl::combat::combat_observation
 
         mask[static_cast<std::size_t>(combat_action_type_t::WAIT)] = active_stack->has_waited ? 0 : 1;
         mask[static_cast<std::size_t>(combat_action_type_t::DEFEND)] = active_stack->has_defended ? 0 : 1;
+
+        const auto& friendly_spellbook = attacker_active ? observation.attacker_spellbook : observation.defender_spellbook;
+        const bool can_cast = attacker_active ? observation.attacker_can_cast_spell : observation.defender_can_cast_spell;
+        const uint16_t hero_mana = attacker_active ? observation.attacker_mana : observation.defender_mana;
+        const auto& friendly_stacks = attacker_active ? observation.attacker_stacks : observation.defender_stacks;
+        const auto friendly_count = attacker_active ? observation.attacker_stack_count : observation.defender_stack_count;
+        const auto& enemy_stacks = attacker_active ? observation.defender_stacks : observation.attacker_stacks;
+        const auto enemy_count = attacker_active ? observation.defender_stack_count : observation.attacker_stack_count;
+
+        auto has_alive_stack = [](const auto& stack_list, uint8_t count) {
+                for(std::size_t index = 0; index < stack_list.size() && index < count; ++index) {
+                        const auto& stack = stack_list[index];
+                        if(stack.is_alive && stack.stack_size > 0 && stack.unit_health > 0)
+                                return true;
+                }
+                return false;
+        };
+
+        const bool friendly_has_target = has_alive_stack(friendly_stacks, friendly_count);
+        const bool enemy_has_target = has_alive_stack(enemy_stacks, enemy_count);
+
+        if(can_cast) {
+                for(std::size_t index = 0; index < rl::combat::SPELL_ACTION_COUNT; ++index) {
+                        if(!friendly_spellbook[index])
+                                continue;
+
+                        const auto& definition = rl::combat::kSpellActions[index];
+                        const auto action_index = static_cast<std::size_t>(definition.action);
+                        bool has_target = true;
+                        switch(definition.target) {
+                        case rl::combat::spell_target_type_t::FRIENDLY:
+                                has_target = friendly_has_target;
+                                break;
+                        case rl::combat::spell_target_type_t::ENEMY:
+                                has_target = enemy_has_target;
+                                break;
+                        case rl::combat::spell_target_type_t::NONE:
+                        default:
+                                break;
+                        }
+
+                        if(!has_target)
+                                continue;
+
+                        const auto& spell_config = game_config::get_spell(definition.spell);
+                        if(hero_mana < spell_config.mana_cost)
+                                continue;
+
+                        mask[action_index] = 1;
+                }
+        }
+
         return mask;
 }
 
@@ -450,6 +553,12 @@ int main(int argc, char** argv) {
                 rl::combat::combat_action_type_t::WAIT,
                 rl::combat::combat_action_type_t::DEFEND,
                 rl::combat::combat_action_type_t::AUTO_RESOLVE,
+                rl::combat::combat_action_type_t::CAST_BLESS,
+                rl::combat::combat_action_type_t::CAST_CURSE,
+                rl::combat::combat_action_type_t::CAST_HASTE,
+                rl::combat::combat_action_type_t::CAST_SLOW,
+                rl::combat::combat_action_type_t::CAST_SHIELD,
+                rl::combat::combat_action_type_t::CAST_LIGHTNING_BOLT,
         });
 
         auto scenario_options = options.scenario_options;
