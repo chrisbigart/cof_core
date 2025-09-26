@@ -36,7 +36,9 @@ combat_environment_t::combat_environment_t(game_t& game_instance, controlled_sid
         : game_instance(&game_instance)
         , session_instance(game_instance)
         , side_controlled(side) {
-        session_instance.game().battle.fn_emit_combat_action = [](const battle_action_t&) {};
+        session_instance.game().battle.fn_emit_combat_action = [this](const battle_action_t& action) {
+                action_history.push_back(action);
+        };
 }
 
 void combat_environment_t::configure(const combat_scenario_spec_t& spec) {
@@ -52,6 +54,7 @@ combat_observation_t combat_environment_t::reset() {
         if(!scenario_ready)
                 return combat_observation_t();
 
+        action_history.clear();
         session_instance.reset();
         ensure_agent_turn();
         return capture_observation(session_instance);
@@ -99,6 +102,12 @@ void combat_environment_t::ensure_agent_turn() {
 
 void combat_environment_t::set_controlled_side(controlled_side_t side) {
         side_controlled = side;
+}
+
+std::vector<battle_action_t> combat_environment_t::consume_action_log() {
+        std::vector<battle_action_t> log;
+        log.swap(action_history);
+        return log;
 }
 
 } // namespace combat

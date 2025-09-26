@@ -4,6 +4,7 @@
 #include "rl/combat_observation.h"
 
 #include <tuple>
+#include <vector>
 
 namespace rl {
 namespace combat {
@@ -29,6 +30,9 @@ public:
         combat_session_t& session() { return session_instance; }
         const combat_session_t& session() const { return session_instance; }
 
+        std::vector<battle_action_t> consume_action_log();
+        const std::vector<battle_action_t>& action_log() const { return action_history; }
+
 private:
         void ensure_agent_turn();
 
@@ -36,6 +40,7 @@ private:
         combat_session_t session_instance;
         bool scenario_ready = false;
         controlled_side_t side_controlled = controlled_side_t::ATTACKER;
+        std::vector<battle_action_t> action_history;
 };
 
 combat_action_spec_t action_from_type(combat_action_type_t type);

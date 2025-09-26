@@ -3,6 +3,9 @@
 #include "rl/combat_observation.h"
 
 #include <algorithm>
+#include <cmath>
+#include <iomanip>
+#include <iostream>
 #include <limits>
 #include <numeric>
 #include <sstream>
@@ -13,6 +16,171 @@
 
 namespace rl {
 namespace combat {
+
+namespace {
+
+constexpr std::size_t EPISODE_LOG_INTERVAL = 1'000;
+
+double compute_mean(const std::vector<float>& values) {
+        if(values.empty())
+                return 0.0;
+
+        const double sum = std::accumulate(values.begin(), values.end(), 0.0);
+        return sum / static_cast<double>(values.size());
+}
+
+double compute_stddev(const std::vector<float>& values, double mean) {
+        if(values.size() < 2)
+                return 0.0;
+
+        double variance = 0.0;
+        for(float value : values) {
+                const double diff = static_cast<double>(value) - mean;
+                variance += diff * diff;
+        }
+
+        variance /= static_cast<double>(values.size());
+        return std::sqrt(variance);
+}
+
+std::string to_string(battle_action_e action) {
+        switch(action) {
+        case ACTION_NONE:
+                return "ACTION_NONE";
+        case ACTION_ROUND_ENDED:
+                return "ACTION_ROUND_ENDED";
+        case ACTION_WAIT:
+                return "ACTION_WAIT";
+        case ACTION_DEFEND:
+                return "ACTION_DEFEND";
+        case ACTION_WALK_TO_HEX:
+                return "ACTION_WALK_TO_HEX";
+        case ACTION_FLY_TO_HEX:
+                return "ACTION_FLY_TO_HEX";
+        case ACTION_MELEE_ATTACK:
+                return "ACTION_MELEE_ATTACK";
+        case ACTION_RANGED_ATTACK:
+                return "ACTION_RANGED_ATTACK";
+        case ACTION_RANGED_AOE_ATTACK:
+                return "ACTION_RANGED_AOE_ATTACK";
+        case ACTION_RETALIATION:
+                return "ACTION_RETALIATION";
+        case ACTION_MORALED:
+                return "ACTION_MORALED";
+        case ACTION_MISMORALED:
+                return "ACTION_MISMORALED";
+        case ACTION_ATTACKER_SPELLCAST:
+                return "ACTION_ATTACKER_SPELLCAST";
+        case ACTION_DEFENDER_SPELLCAST:
+                return "ACTION_DEFENDER_SPELLCAST";
+        case ACTION_UNIT_SPELLCAST:
+                return "ACTION_UNIT_SPELLCAST";
+        case ACTION_MANA_RESTORED:
+                return "ACTION_MANA_RESTORED";
+        case ACTION_BUFF_APPLIED:
+                return "ACTION_BUFF_APPLIED";
+        case ACTION_BUFF_EXPIRED:
+                return "ACTION_BUFF_EXPIRED";
+        case ACTION_UNIT_UPDATE:
+                return "ACTION_UNIT_UPDATE";
+        case ACTION_UNIT_LIFESTEAL:
+                return "ACTION_UNIT_LIFESTEAL";
+        case ACTION_CATAPULT_FIRED_AT_WALL:
+                return "ACTION_CATAPULT_FIRED_AT_WALL";
+        default:
+                return "ACTION_UNKNOWN";
+        }
+}
+
+std::string unit_summary(const battlefield_unit_t& unit) {
+        if(unit.unit_type == UNIT_UNKNOWN || unit.stack_size == 0)
+                return "None";
+
+        std::ostringstream stream;
+        stream << "#" << static_cast<int>(unit.unit_type) << " x" << unit.stack_size;
+        stream << (unit.is_attacker ? " (attacker)" : " (defender)");
+        return stream.str();
+}
+
+void print_targets(const std::vector<battle_action_t::target_t>& targets) {
+        for(std::size_t target_index = 0; target_index < targets.size(); ++target_index) {
+                const auto& target = targets[target_index];
+                std::cout << "      target[" << target_index << "] " << unit_summary(target.target_unit)
+                          << " dmg=" << target.damage << " kills=" << target.kills;
+                if(target.was_fatal)
+                        std::cout << " fatal";
+                if(target.is_healing)
+                        std::cout << " healing";
+                std::cout << "\n";
+        }
+}
+
+void print_battle_log(const std::vector<battle_action_t>& actions) {
+        if(actions.empty()) {
+                std::cout << "  <no combat actions recorded>\n";
+                return;
+        }
+
+        for(std::size_t index = 0; index < actions.size(); ++index) {
+                const auto& action = actions[index];
+                std::cout << "  [" << index << "] " << to_string(action.action);
+
+                const auto actor = unit_summary(action.acting_unit);
+                if(actor != "None")
+                        std::cout << " actor=" << actor;
+
+                if(action.spell_id != SPELL_UNKNOWN)
+                        std::cout << " spell=" << static_cast<int>(action.spell_id);
+                if(action.buff_id != BUFF_NONE)
+                        std::cout << " buff=" << static_cast<int>(action.buff_id);
+                if(action.applicable_talent != TALENT_NONE)
+                        std::cout << " talent=" << static_cast<int>(action.applicable_talent);
+                if(action.applicable_artifact != ARTIFACT_NONE)
+                        std::cout << " artifact=" << static_cast<int>(action.applicable_artifact);
+                if(action.affected_wall_section != CASTLE_WALL_SECTION_NONE)
+                        std::cout << " wall=" << static_cast<int>(action.affected_wall_section);
+                if(action.effect_value != 0)
+                        std::cout << " effect=" << action.effect_value;
+
+                if(!action.affected_units.empty()) {
+                        std::cout << "\n";
+                        print_targets(action.affected_units);
+                } else {
+                        std::cout << "\n";
+                }
+        }
+}
+
+void report_progress(std::size_t episode_count,
+                     const training_metrics_t& metrics,
+                     const std::vector<battle_action_t>& last_actions) {
+        std::cout << "\n=== Training progress after " << episode_count << " episodes ===\n";
+        std::cout << "Completed " << episode_count << " episodes / " << metrics.total_steps << " environment steps\n";
+
+        if(!metrics.episode_rewards.empty()) {
+                const double mean = compute_mean(metrics.episode_rewards);
+                const double stddev = compute_stddev(metrics.episode_rewards, mean);
+                std::cout << std::fixed << std::setprecision(3)
+                          << "Episode reward: mean=" << mean << " std=" << stddev << "\n";
+        }
+
+        if(!metrics.losses.empty()) {
+                const double mean_loss = compute_mean(metrics.losses);
+                std::cout << std::fixed << std::setprecision(6) << "Average loss: " << mean_loss << "\n";
+        }
+
+        if(!metrics.epsilon_values.empty()) {
+                std::cout << std::fixed << std::setprecision(3)
+                          << "Epsilon schedule: start=" << metrics.epsilon_values.front()
+                          << " current=" << metrics.epsilon_values.back() << "\n";
+        }
+
+        std::cout << "Previous battle actions:" << "\n";
+        print_battle_log(last_actions);
+        std::cout << std::flush;
+}
+
+} // namespace
 
 double epsilon_schedule_t::value(std::size_t step) const {
         if(step >= decay_steps)
@@ -117,6 +285,7 @@ dqn_trainer_t::dqn_trainer_t(combat_environment_t& environment,
 
 training_metrics_t dqn_trainer_t::train(std::size_t episodes) {
         training_metrics_t metrics;
+        std::vector<battle_action_t> last_episode_actions;
 
         for(std::size_t episode = 0; episode < episodes; ++episode) {
                 auto scenario = scenario_generator(rng);
@@ -183,6 +352,12 @@ training_metrics_t dqn_trainer_t::train(std::size_t episodes) {
                 metrics.epsilon_values.push_back(epsilon);
                 metrics.losses.insert(metrics.losses.end(), episode_losses.begin(), episode_losses.end());
                 metrics.total_steps = global_step;
+
+                last_episode_actions = environment->consume_action_log();
+
+                const std::size_t completed_episodes = episode + 1;
+                if(completed_episodes % EPISODE_LOG_INTERVAL == 0)
+                        report_progress(completed_episodes, metrics, last_episode_actions);
         }
 
         return metrics;
