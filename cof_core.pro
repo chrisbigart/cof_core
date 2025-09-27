@@ -4,6 +4,8 @@ TARGET = cof_core
 INCLUDEPATH += .
 INCLUDEPATH += ./server/src
 INCLUDEPATH += ./game/src
+INCLUDEPATH += $$PWD/libtorch/include
+INCLUDEPATH += $$PWD/libtorch/include/torch/csrc/api/include
 
 CONFIG += qt debug console
 CONFIG -= app_bundle
@@ -17,6 +19,11 @@ MOC_DIR = moc
 
 #LIBS += -L/opt/homebrew/opt/lua/lib
 LIBS += -llua5.4
+LIBS += -L$$PWD/libtorch/lib -ltorch -ltorch_cpu -lc10 -ltorch_global_deps -lkineto
+
+QMAKE_CXXFLAGS += -D_GLIBCXX_USE_CXX11_ABI=1
+QMAKE_LFLAGS += -Wl,-rpath,$$PWD/libtorch/lib
+QMAKE_LFLAGS += -Wl,--no-as-needed
 
 #DEFINES += QT_DISABLE_DEPRECATED_BEFORE=0x060000    # disables all the APIs deprecated before Qt 6.0.0
 
@@ -60,10 +67,16 @@ SOURCES += 	main.cpp \
 
 HEADERS += game/src/rl/battle_sim.h \
            game/src/rl/battle_session.h \
-           game/src/rl/battle_python_bindings.h
+           game/src/rl/combat_agent.h \
+           game/src/rl/combat_environment.h \
+           game/src/rl/combat_observation.h \
+           game/src/rl/combat_training.h
 SOURCES += game/src/rl/battle_sim.cpp \
            game/src/rl/battle_session.cpp \
-           game/src/rl/battle_python_bindings.cpp
+           game/src/rl/combat_agent.cpp \
+           game/src/rl/combat_environment.cpp \
+           game/src/rl/combat_observation.cpp \
+           game/src/rl/combat_training.cpp
 
 LIBCOF_TARGET = $$OUT_PWD/libcof_core.so
 
