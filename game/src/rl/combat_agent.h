@@ -21,7 +21,7 @@ public:
                        const CombatNetworkOptions& options = CombatNetworkOptions(),
                        torch::Device device = torch::kCPU);
 
-        combat_action_type_t select_action(const combat_observation_t& observation) const;
+        int64_t select_action(const combat_observation_t& observation) const;
         torch::Tensor evaluate(const combat_observation_t& observation) const;
 
         torch::nn::Sequential& model() { return policy_network; }

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "rl/battle_sim.h"
+#include "rl/combat_actions.h"
 
 #include "core/hero.h"
 #include "core/troop.h"
@@ -46,23 +47,6 @@ struct combat_scenario_spec_t {
         bool quick_combat = false;
 };
 
-enum class combat_action_type_t : uint8_t {
-        WAIT = 0,
-        DEFEND = 1,
-        AUTO_RESOLVE = 2,
-        CAST_BLESS = 3,
-        CAST_CURSE = 4,
-        CAST_HASTE = 5,
-        CAST_SLOW = 6,
-        CAST_SHIELD = 7,
-        CAST_LIGHTNING_BOLT = 8,
-        COUNT = 9,
-};
-
-struct combat_action_spec_t {
-        combat_action_type_t type = combat_action_type_t::WAIT;
-};
-
 class combat_session_t {
 public:
         explicit combat_session_t(game_t& game_instance);
@@ -73,6 +57,8 @@ public:
 
         battle_result_e step();
         bool apply_action(const combat_action_spec_t& action);
+
+        action_mask_t legal_actions(bool controls_attacker);
 
         const combat_scenario_spec_t& scenario() const { return scenario_spec; }
 

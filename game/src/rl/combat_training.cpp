@@ -232,13 +232,13 @@ bool replay_buffer_t::ready_for_training(std::size_t minimum_size) const {
         return data.size() >= minimum_size;
 }
 
-discrete_action_space_t::discrete_action_space_t(std::vector<combat_action_type_t> mapping)
+discrete_action_space_t::discrete_action_space_t(std::vector<std::size_t> mapping)
         : actions(std::move(mapping)) {
         if(actions.empty())
                 throw std::invalid_argument("Action space must contain at least one action");
 }
 
-combat_action_type_t discrete_action_space_t::to_native(std::size_t index) const {
+std::size_t discrete_action_space_t::to_native(std::size_t index) const {
         if(index >= actions.size())
                 throw std::out_of_range("Action index out of range");
         return actions[index];

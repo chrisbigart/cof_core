@@ -1,5 +1,6 @@
 #include "rl/combat_agent.h"
 
+#include "rl/combat_actions.h"
 #include "rl/combat_observation.h"
 
 #include <algorithm>
@@ -44,11 +45,11 @@ torch::Tensor combat_agent_t::evaluate(const combat_observation_t& observation) 
         return output.squeeze(0).to(torch::kCPU);
 }
 
-combat_action_type_t combat_agent_t::select_action(const combat_observation_t& observation) const {
+int64_t combat_agent_t::select_action(const combat_observation_t& observation) const {
         auto scores = evaluate(observation);
         auto action_index = scores.argmax().item<int64_t>();
         action_index = std::clamp<int64_t>(action_index, 0, static_cast<int64_t>(ACTION_COUNT) - 1);
-        return static_cast<combat_action_type_t>(action_index);
+        return action_index;
 }
 
 } // namespace combat

@@ -72,14 +72,14 @@ private:
 
 class discrete_action_space_t {
 public:
-        explicit discrete_action_space_t(std::vector<combat_action_type_t> mapping);
+        explicit discrete_action_space_t(std::vector<std::size_t> mapping);
 
         [[nodiscard]] std::size_t size() const { return actions.size(); }
-        [[nodiscard]] combat_action_type_t to_native(std::size_t index) const;
-        [[nodiscard]] const std::vector<combat_action_type_t>& all() const { return actions; }
+        [[nodiscard]] std::size_t to_native(std::size_t index) const;
+        [[nodiscard]] const std::vector<std::size_t>& all() const { return actions; }
 
 private:
-        std::vector<combat_action_type_t> actions;
+        std::vector<std::size_t> actions;
 };
 
 using scenario_generator_t = std::function<combat_scenario_spec_t(std::mt19937& rng)>;

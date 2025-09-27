@@ -322,92 +322,6 @@ rl::combat::combat_scenario_spec_t build_default_scenario(std::mt19937& rng,
         return scenario;
 }
 
-rl::combat::action_mask_t legal_action_mask(const rl::combat::combat_observation_t& observation) {
-        using rl::combat::action_mask_t;
-        using rl::combat::combat_action_type_t;
-
-        action_mask_t mask(rl::combat::ACTION_COUNT, 0);
-        const auto auto_index = static_cast<std::size_t>(combat_action_type_t::AUTO_RESOLVE);
-        mask[auto_index] = 1;
-
-        if(observation.active_unit_id < 0)
-                return mask;
-
-        const bool attacker_active = observation.active_unit_is_attacker;
-        const auto x = observation.active_unit_x;
-        const auto y = observation.active_unit_y;
-        const auto& stacks = attacker_active ? observation.attacker_stacks : observation.defender_stacks;
-
-        const rl::combat::stack_observation_t* active_stack = nullptr;
-        for(const auto& stack : stacks) {
-                if(!stack.is_alive)
-                        continue;
-                if(stack.x == x && stack.y == y) {
-                        active_stack = &stack;
-                        break;
-                }
-        }
-
-        if(!active_stack || active_stack->is_disabled)
-                return mask;
-
-        mask[static_cast<std::size_t>(combat_action_type_t::WAIT)] = active_stack->has_waited ? 0 : 1;
-        mask[static_cast<std::size_t>(combat_action_type_t::DEFEND)] = active_stack->has_defended ? 0 : 1;
-
-        const auto& friendly_spellbook = attacker_active ? observation.attacker_spellbook : observation.defender_spellbook;
-        const bool can_cast = attacker_active ? observation.attacker_can_cast_spell : observation.defender_can_cast_spell;
-        const uint16_t hero_mana = attacker_active ? observation.attacker_mana : observation.defender_mana;
-        const auto& friendly_stacks = attacker_active ? observation.attacker_stacks : observation.defender_stacks;
-        const auto friendly_count = attacker_active ? observation.attacker_stack_count : observation.defender_stack_count;
-        const auto& enemy_stacks = attacker_active ? observation.defender_stacks : observation.attacker_stacks;
-        const auto enemy_count = attacker_active ? observation.defender_stack_count : observation.attacker_stack_count;
-
-        auto has_alive_stack = [](const auto& stack_list, uint8_t count) {
-                for(std::size_t index = 0; index < stack_list.size() && index < count; ++index) {
-                        const auto& stack = stack_list[index];
-                        if(stack.is_alive && stack.stack_size > 0 && stack.unit_health > 0)
-                                return true;
-                }
-                return false;
-        };
-
-        const bool friendly_has_target = has_alive_stack(friendly_stacks, friendly_count);
-        const bool enemy_has_target = has_alive_stack(enemy_stacks, enemy_count);
-
-        if(can_cast) {
-                for(std::size_t index = 0; index < rl::combat::SPELL_ACTION_COUNT; ++index) {
-                        if(!friendly_spellbook[index])
-                                continue;
-
-                        const auto& definition = rl::combat::kSpellActions[index];
-                        const auto action_index = static_cast<std::size_t>(definition.action);
-                        bool has_target = true;
-                        switch(definition.target) {
-                        case rl::combat::spell_target_type_t::FRIENDLY:
-                                has_target = friendly_has_target;
-                                break;
-                        case rl::combat::spell_target_type_t::ENEMY:
-                                has_target = enemy_has_target;
-                                break;
-                        case rl::combat::spell_target_type_t::NONE:
-                        default:
-                                break;
-                        }
-
-                        if(!has_target)
-                                continue;
-
-                        const auto& spell_config = game_config::get_spell(definition.spell);
-                        if(hero_mana < spell_config.mana_cost)
-                                continue;
-
-                        mask[action_index] = 1;
-                }
-        }
-
-        return mask;
-}
-
 rl::combat::controlled_side_t parse_side(const std::string& value) {
         const auto normalized = to_lower(value);
         if(normalized == "attacker")
@@ -549,25 +463,17 @@ int main(int argc, char** argv) {
         epsilon_schedule.end = options.epsilon_end;
         epsilon_schedule.decay_steps = static_cast<std::size_t>(std::max(options.epsilon_decay, 0));
 
-        rl::combat::discrete_action_space_t action_space({
-                rl::combat::combat_action_type_t::WAIT,
-                rl::combat::combat_action_type_t::DEFEND,
-                rl::combat::combat_action_type_t::AUTO_RESOLVE,
-                rl::combat::combat_action_type_t::CAST_BLESS,
-                rl::combat::combat_action_type_t::CAST_CURSE,
-                rl::combat::combat_action_type_t::CAST_HASTE,
-                rl::combat::combat_action_type_t::CAST_SLOW,
-                rl::combat::combat_action_type_t::CAST_SHIELD,
-                rl::combat::combat_action_type_t::CAST_LIGHTNING_BOLT,
-        });
+        std::vector<std::size_t> action_mapping(rl::combat::ACTION_COUNT);
+        std::iota(action_mapping.begin(), action_mapping.end(), 0);
+        rl::combat::discrete_action_space_t action_space(std::move(action_mapping));
 
         auto scenario_options = options.scenario_options;
         auto scenario_generator = [scenario_options](std::mt19937& rng) {
                 return build_default_scenario(rng, scenario_options);
         };
 
-        auto legal_fn = [](const rl::combat::combat_observation_t& observation) {
-                return std::optional<rl::combat::action_mask_t>(legal_action_mask(observation));
+        auto legal_fn = [&environment](const rl::combat::combat_observation_t&) {
+                return std::optional<rl::combat::action_mask_t>(environment.legal_action_mask());
         };
 
         rl::combat::dqn_trainer_t trainer(environment,

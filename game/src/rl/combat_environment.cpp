@@ -26,12 +26,6 @@ float terminal_reward(battle_result_e result, controlled_side_t side) {
 
 } // namespace
 
-combat_action_spec_t action_from_type(combat_action_type_t type) {
-        combat_action_spec_t action;
-        action.type = type;
-        return action;
-}
-
 combat_environment_t::combat_environment_t(game_t& game_instance, controlled_side_t side)
         : game_instance(&game_instance)
         , session_instance(game_instance)
@@ -60,12 +54,12 @@ combat_observation_t combat_environment_t::reset() {
         return capture_observation(session_instance);
 }
 
-std::tuple<combat_observation_t, float, bool, battle_result_e> combat_environment_t::step(combat_action_type_t action_type) {
+std::tuple<combat_observation_t, float, bool, battle_result_e> combat_environment_t::step(std::size_t action_index) {
         if(!scenario_ready)
                 return std::make_tuple(combat_observation_t(), 0.0F, true, BATTLE_IN_PROGRESS);
 
         float reward = 0.0F;
-        bool applied = session_instance.apply_action(action_from_type(action_type));
+        bool applied = session_instance.apply_action(decode_action_index(action_index));
         if(!applied)
                 reward -= 0.1F;
 
@@ -79,6 +73,10 @@ std::tuple<combat_observation_t, float, bool, battle_result_e> combat_environmen
         ensure_agent_turn();
         auto observation = capture_observation(session_instance);
         return std::make_tuple(observation, reward, false, result);
+}
+
+action_mask_t combat_environment_t::legal_action_mask() {
+        return session_instance.legal_actions(side_controlled == controlled_side_t::ATTACKER);
 }
 
 void combat_environment_t::ensure_agent_turn() {

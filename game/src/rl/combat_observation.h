@@ -2,6 +2,7 @@
 
 #include "rl/battle_session.h"
 #include "rl/combat_actions.h"
+#include "rl/combat_constants.h"
 
 #include <array>
 #include <cstddef>
@@ -18,7 +19,6 @@
 namespace rl {
 namespace combat {
 
-constexpr std::size_t MAX_ARMY_TROOPS = 16;
 constexpr std::size_t STACK_FEATURES = 15;
 constexpr std::size_t GLOBAL_FEATURES = 18 + (2 * SPELL_ACTION_COUNT);
 
