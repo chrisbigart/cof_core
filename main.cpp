@@ -92,7 +92,7 @@ void print_usage(const char* program) {
                   << "  --epsilon-start <float>      Initial epsilon for exploration (default: 1.0)\n"
                   << "  --epsilon-end <float>        Final epsilon value (default: 0.05)\n"
                   << "  --epsilon-decay <int>        Steps to anneal epsilon (default: 5000)\n"
-                  << "  --hidden-layer <int>         Append a hidden layer width (can repeat)\n"
+                  << "  --hidden-layer <int>         Append a hidden layer width (can repeat, default: 512,256,128)\n"
                   << "  --layer-norm[=bool]          Enable layer normalization in policy network\n"
                   << "  --device <str>               Torch device (e.g. cpu or cuda:0)\n"
                   << "  --side <attacker|defender>   Controlled combat side (default: attacker)\n"
@@ -194,7 +194,7 @@ std::vector<std::size_t> resolve_hidden_layers(const std::vector<int>& values) {
                         result.push_back(static_cast<std::size_t>(value));
         }
         if(result.empty())
-                result = {256, 128};
+                result = {512, 256, 128};
         return result;
 }
 

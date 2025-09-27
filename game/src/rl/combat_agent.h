@@ -10,7 +10,7 @@ namespace rl {
 namespace combat {
 
 struct CombatNetworkOptions {
-        std::vector<std::size_t> hidden_layers{256, 128};
+        std::vector<std::size_t> hidden_layers{512, 256, 128};
         bool use_layer_norm = false;
 };
 

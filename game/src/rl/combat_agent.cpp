@@ -19,7 +19,7 @@ combat_agent_t::combat_agent_t(std::size_t observation_dim,
 
         std::vector<std::size_t> hidden_layers = options.hidden_layers;
         if(hidden_layers.empty())
-                hidden_layers = {256, 128};
+                hidden_layers = {512, 256, 128};
 
         long previous_dim = static_cast<long>(observation_dim);
         for(std::size_t index = 0; index < hidden_layers.size(); ++index) {
@@ -42,13 +42,15 @@ torch::Tensor combat_agent_t::evaluate(const combat_observation_t& observation) 
         auto input = observation_to_tensor(observation, device);
         input = input.unsqueeze(0);
         auto output = policy_network->forward(input);
-        return output.squeeze(0).to(torch::kCPU);
+        return output.squeeze(0).detach();
 }
 
 int64_t combat_agent_t::select_action(const combat_observation_t& observation) const {
         auto scores = evaluate(observation);
         auto action_index = scores.argmax().item<int64_t>();
-        action_index = std::clamp<int64_t>(action_index, 0, static_cast<int64_t>(ACTION_COUNT) - 1);
+        const auto max_index = static_cast<int64_t>(ACTION_COUNT) - 1;
+        if(max_index >= 0)
+                action_index = std::clamp<int64_t>(action_index, 0, max_index);
         return action_index;
 }
 
