@@ -540,6 +540,7 @@ struct battlefield_t {
 	std::pair<battlefield_unit_t*, battlefield_hex_t*> get_nearest_target(battlefield_unit_t* acting_unit, bool include_friendly = false, bool ignore_range = false);
 	battlefield_hex_t* get_target_movement_hex(battlefield_unit_t* acting_unit);
 	uint get_two_hex_effective_x(const battlefield_unit_t& unit, uint target_x, uint target_y);
+	battlefield_hex_t* get_open_position_closest_to_caster(bool caster_is_attacker, const battlefield_unit_t& unit);
 	std::vector<battlefield_unit_t*> get_chain_lightning_targets(battlefield_unit_t* initial_target, int jump_count);
 	bool is_move_valid(battlefield_unit_t& unit, uint target_x, uint target_y);
 	bool is_spell_target_valid(hero_t* caster, battlefield_unit_t* unit, spell_e spell_id);

@@ -38,6 +38,12 @@ void place_unit(battlefield_t& battlefield, battlefield_unit_t& unit) {
         battlefield.hex_grid.get_hex(unit.x, unit.y)->unit = &unit;
 }
 
+void place_two_hex_unit(battlefield_t& battlefield, battlefield_unit_t& unit) {
+        place_unit(battlefield, unit);
+        const int tail_direction = unit.is_attacker ? -1 : 1;
+        battlefield.hex_grid.get_hex(unit.x + tail_direction, unit.y)->unit = &unit;
+}
+
 void assign_army_unit(army_t& army, std::size_t slot, battlefield_unit_t unit) {
         army.troops[slot] = unit;
 }
@@ -112,6 +118,24 @@ void test_healing_simulate_and_resurrect() {
         expect_eq(resurrected.second, static_cast<uint16_t>(1), "healing a dead stack should resurrect one unit when enough healing is supplied");
         expect_eq(unit.stack_size, static_cast<uint16_t>(1), "resurrected stack should contain one unit");
         expect_true(battlefield.hex_grid.get_hex(4, 4)->unit == &unit, "resurrected stack should be restored to the hex grid");
+}
+
+void test_dead_stack_zero_healing_does_not_reoccupy_hex() {
+        battlefield_t battlefield;
+        battlefield.fn_emit_combat_action = [](const battle_action_t&) {};
+        battlefield_unit_t unit = make_unit(UNIT_SKELETON, 1, true, 2, 4, 4);
+        unit.original_stack_size = 1;
+        place_unit(battlefield, unit);
+
+        battlefield.deal_damage_to_stack(9999, unit);
+        expect_eq(unit.stack_size, static_cast<uint16_t>(0), "test setup should kill the stack");
+        expect_true(battlefield.hex_grid.get_hex(4, 4)->unit == nullptr, "dead stack should be removed before zero healing");
+
+        const auto healed = battlefield.apply_healing_to_stack(0, unit, true, false);
+        expect_eq(healed.first, static_cast<uint32_t>(0), "zero healing should report no healing");
+        expect_eq(healed.second, static_cast<uint16_t>(0), "zero healing should report no resurrected units");
+        expect_eq(unit.stack_size, static_cast<uint16_t>(0), "zero healing should leave the stack dead");
+        expect_true(battlefield.hex_grid.get_hex(4, 4)->unit == nullptr, "zero healing should not put a dead stack back on the hex grid");
 }
 
 void test_healing_exact_edge_cases_from_regression_suite() {
@@ -288,6 +312,61 @@ void test_movement_shooting_and_retaliation_rules() {
         expect_true(archer.add_buff(BUFF_NO_ENEMY_RETALIATION), "test setup should add no-retaliation buff");
         expect_true(!battlefield.will_defender_retaliate(archer, enemy), "attacker no-retaliation buff should suppress retaliation");
 }
+
+void test_resurrection_targeting_rejects_blocked_two_hex_corpse() {
+        battlefield_t battlefield;
+        battlefield.fn_emit_combat_action = [](const battle_action_t&) {};
+        hero_t attacker;
+        hero_t defender;
+        battlefield.attacking_hero = &attacker;
+        battlefield.defending_hero = &defender;
+
+        battlefield_unit_t abomination = make_unit(UNIT_ABOMINATION, 3, true, 0, 5, 5);
+        abomination.original_stack_size = 3;
+        place_two_hex_unit(battlefield, abomination);
+        battlefield.deal_damage_to_stack(9999, abomination);
+        expect_eq(abomination.stack_size, static_cast<uint16_t>(0), "test setup should create a two-hex corpse");
+
+        battlefield_unit_t blocker = make_unit(UNIT_SKELETON, 10, false, 3, 4, 5);
+        place_unit(battlefield, blocker);
+
+        expect_true(!battlefield.is_spell_target_valid(&attacker, &abomination, SPELL_RESURRECTION),
+                    "resurrection should be invalid when a two-hex corpse's tail is blocked by another unit");
+}
+
+void test_summon_spell_auto_places_near_caster_and_rejects_when_full() {
+        battlefield_t battlefield;
+        battlefield.fn_emit_combat_action = [](const battle_action_t&) {};
+        hero_t attacker;
+        attacker.mana = 100;
+        attacker.spellbook.push_back(SPELL_SUMMON_EFREET);
+        battlefield.attacking_hero = &attacker;
+
+        battlefield_unit_t blocker = make_unit(UNIT_SKELETON, 10, false, 7, 3, 3);
+        place_unit(battlefield, blocker);
+
+        expect_eq(battlefield.cast_spell(&attacker, SPELL_SUMMON_EFREET), SPELL_RESULT_OK,
+                  "summon should succeed without requiring a target hex");
+        auto summoned = battlefield.attacking_army.troops[0];
+        expect_true(summoned.was_summoned, "summon should fill the first open friendly troop slot");
+        expect_true(battlefield.hex_grid.get_hex(summoned.x, summoned.y)->unit == &battlefield.attacking_army.troops[0],
+                    "summon should occupy the automatically selected open hex");
+        expect_true(battlefield.hex_grid.get_hex(3, 3)->unit == &blocker, "summon should not overwrite occupied hexes while auto-placing");
+
+        battlefield_t full_battlefield;
+        full_battlefield.fn_emit_combat_action = [](const battle_action_t&) {};
+        hero_t full_attacker;
+        full_attacker.mana = 100;
+        full_attacker.spellbook.push_back(SPELL_SUMMON_EFREET);
+        full_battlefield.attacking_hero = &full_attacker;
+        for(uint y = 0; y < game_config::BATTLEFIELD_HEIGHT; ++y) {
+                for(uint x = 0; x < game_config::BATTLEFIELD_WIDTH; ++x)
+                        full_battlefield.hex_grid.get_hex(x, y)->passable = false;
+        }
+        full_attacker.mana = 100;
+        expect_eq(full_battlefield.cast_spell(&full_attacker, SPELL_SUMMON_EFREET), SPELL_RESULT_INVALID_TARGET,
+                  "summon should fail when no passable open hex is available");
+}
 }
 
 int main() {
@@ -296,7 +375,7 @@ int main() {
                 config_root = config_root.parent_path();
 
         const auto config_prefix = config_root.string() + "/";
-        if(game_config::load_buffs(config_prefix) != 0 || game_config::load_creatures(config_prefix) != 0) {
+        if(game_config::load_buffs(config_prefix) != 0 || game_config::load_creatures(config_prefix) != 0 || game_config::load_spells(config_prefix) != 0) {
                 std::cerr << "FAIL: required combat config failed to load\n";
                 return EXIT_FAILURE;
         }
@@ -304,12 +383,15 @@ int main() {
         test_buff_lifecycle_and_disabled_state();
         test_damage_kills_and_clears_hex();
         test_healing_simulate_and_resurrect();
+        test_dead_stack_zero_healing_does_not_reoccupy_hex();
         test_healing_exact_edge_cases_from_regression_suite();
         test_damage_prediction_and_adjusted_stats_are_bounded();
         test_turn_queue_orders_by_adjusted_initiative_speed_and_troop_bar();
         test_wait_queue_uses_adjusted_reverse_order();
         test_wait_unit_requeues_active_unit_after_non_waiters();
         test_movement_shooting_and_retaliation_rules();
+        test_resurrection_targeting_rejects_blocked_two_hex_corpse();
+        test_summon_spell_auto_places_near_caster_and_rejects_when_full();
 
         if(failures != 0) {
                 std::cerr << failures << " combat core test(s) failed.\n";
