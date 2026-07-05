@@ -6,6 +6,7 @@
 
 #include <deque>
 #include <algorithm>
+#include <limits>
 #include <random>
 #include <queue>
 
@@ -619,6 +620,37 @@ uint battlefield_t::get_two_hex_effective_x(const battlefield_unit_t& unit, uint
 	}
 
 	return target_x;
+}
+
+battlefield_hex_t* battlefield_t::get_open_position_closest_to_caster(bool caster_is_attacker, const battlefield_unit_t& unit) {
+	const int start_x = caster_is_attacker ? 0 : game_config::BATTLEFIELD_WIDTH - 1;
+	const int start_y = 3;
+	const int tail_direction = caster_is_attacker ? -1 : 1;
+
+	battlefield_hex_t* best_hex = nullptr;
+	int best_distance = std::numeric_limits<int>::max();
+
+	for(int y = 0; y < static_cast<int>(game_config::BATTLEFIELD_HEIGHT); ++y) {
+		for(int x = 0; x < static_cast<int>(game_config::BATTLEFIELD_WIDTH); ++x) {
+			auto hex = hex_grid.get_hex(x, y);
+			if(!hex || !hex->passable || hex->unit)
+				continue;
+
+			if(unit.is_two_hex()) {
+				auto tail_hex = hex_grid.get_hex(x + tail_direction, y);
+				if(!tail_hex || !tail_hex->passable || tail_hex->unit)
+					continue;
+			}
+
+			const int distance = hex_grid.distance(start_x, start_y, x, y);
+			if(distance < best_distance) {
+				best_distance = distance;
+				best_hex = hex;
+			}
+		}
+	}
+
+	return best_hex;
 }
 
 bool battlefield_t::is_move_valid(battlefield_unit_t &unit, uint target_x, uint target_y) {
@@ -2028,6 +2060,11 @@ spell_result_e battlefield_t::cast_spell(hero_t* caster, spell_e spell_id, int t
 			summoned_unit.unit_health = get_unit_adjusted_hp(summoned_unit);
 			summoned_unit.was_summoned = true;
 			summoned_unit.is_attacker = (caster == attacking_hero);
+
+			auto summon_hex = get_open_position_closest_to_caster(summoned_unit.is_attacker, summoned_unit);
+			if(!summon_hex)
+				return SPELL_RESULT_INVALID_TARGET;
+
 			int pos = 0;
 			for(; pos < caster_troops.size(); pos++) {
 				if(caster_troops[pos].unit_type == UNIT_UNKNOWN)
@@ -2048,8 +2085,9 @@ spell_result_e battlefield_t::cast_spell(hero_t* caster, spell_e spell_id, int t
 			}
 
 			summoned_unit.troop_id = ++id;
-			summoned_unit.x = 3;
-			summoned_unit.y = 3;
+			summoned_unit.x = summon_hex->x;
+			summoned_unit.y = summon_hex->y;
+			action.target_hex = make_hex_location(summon_hex->x, summon_hex->y);
 
 			caster_troops[pos] = summoned_unit;
 			
@@ -3995,6 +4033,9 @@ std::pair<uint32_t, uint16_t> battlefield_t::calculate_healing_to_stack(hero_t* 
 }
 
 std::pair<uint32_t, uint16_t> battlefield_t::apply_healing_to_stack(uint32_t healing, battlefield_unit_t& unit, bool can_resurrect, bool simulate) {
+	if(healing == 0)
+		return {0, 0};
+
 	bool was_dead = (unit.stack_size == 0);
 
 	uint32_t adjusted_healing = healing;
@@ -4029,7 +4070,7 @@ std::pair<uint32_t, uint16_t> battlefield_t::apply_healing_to_stack(uint32_t hea
 			unit.unit_health = unit_max_hp;
 		}
 
-		if(was_dead) {
+		if(was_dead && new_stack_size > 0) {
 			auto unit_hex = hex_grid.get_hex(unit.x, unit.y);
 			if(unit_hex->unit != nullptr)
 				throw;
@@ -4888,10 +4929,20 @@ bool battlefield_t::is_unit_immune_to_spell(const battlefield_unit_t* unit, spel
 }
 
 bool battlefield_t::is_spell_target_valid(hero_t* caster, int target_x, int target_y, spell_e spell_id) {
-	if(!caster || !hex_grid.get_hex(target_x, target_y) || spell_id == SPELL_UNKNOWN)
+	if(!caster || spell_id == SPELL_UNKNOWN)
 		return false;
 
 	const auto& spell_info = game_config::get_spell(spell_id);
+	if(spell_info.target == TARGET_SUMMON) {
+		battlefield_unit_t summoned_unit;
+		summoned_unit.unit_type = UNIT_EFREETI;
+		summoned_unit.is_attacker = (caster == attacking_hero);
+		return get_open_position_closest_to_caster(summoned_unit.is_attacker, summoned_unit) != nullptr;
+	}
+
+	if(!hex_grid.get_hex(target_x, target_y))
+		return false;
+
 	switch(spell_info.target) { 
 		case TARGET_NONE:
 			return false;
