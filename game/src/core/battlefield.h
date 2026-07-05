@@ -146,6 +146,7 @@ struct battlefield_unit_t : troop_t {
 				b.buff_id = buff_id;
 				b.duration = duration;
 				b.magnitude = magnitude;
+				added = true;
 				break;
 			}
 		}

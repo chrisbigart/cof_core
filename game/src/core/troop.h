@@ -65,7 +65,7 @@ struct troop_t {
 			return 100;
 		if(magic_type == MAGIC_DAMAGE_FIRE && cr.has_inherent_buff(BUFF_FIRE_IMMUNITY))
 			return 100;
-		if(magic_type == MAGIC_DAMAGE_FROST && cr.has_inherent_buff(BUFF_FIRE_IMMUNITY))
+		if(magic_type == MAGIC_DAMAGE_FROST && cr.has_inherent_buff(BUFF_FROST_IMMUNITY))
 			return 100;
 		if(magic_type == MAGIC_DAMAGE_LIGHTNING && cr.has_inherent_buff(BUFF_LIGHTNING_IMMUNITY))
 			return 100;

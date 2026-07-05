@@ -787,10 +787,10 @@ std::pair<uint32_t, uint32_t> battlefield_t::get_attack_damage_range(battlefield
 }
 
 uint16_t battlefield_t::get_kills(uint32_t damage, battlefield_unit_t& defender) {
-	if(damage < defender.unit_health)
+	if(defender.stack_size == 0 || damage < defender.unit_health)
 		return 0;
 	
-	auto kills = 1;
+	uint32_t kills = 1;
 	damage -= defender.unit_health;
 	auto adjusted_hp = get_unit_adjusted_hp(defender);
 	if(adjusted_hp == 0) //should not happen
@@ -798,7 +798,7 @@ uint16_t battlefield_t::get_kills(uint32_t damage, battlefield_unit_t& defender)
 
 	kills += damage / adjusted_hp;
 
-	return kills;
+	return std::min<uint32_t>(kills, defender.stack_size);
 }
 
 std::pair<uint32_t, uint32_t> battlefield_t::get_kill_range(battlefield_unit_t& attacker, battlefield_unit_t& defender, bool is_ranged_attack, battlefield_hex_t* attack_from_hex, battlefield_hex_t* source_movement_hex) {
@@ -922,7 +922,7 @@ uint battlefield_t::get_unit_adjusted_defense(battlefield_unit_t& unit) {
 	if(unit.has_buff(BUFF_INFESTED))
 		bonus -= unit.get_buff(BUFF_INFESTED).magnitude;
 
-	return std::round((defense + bonus) * (unit.has_defended ? 1.2f : 1.f));
+	return std::round(std::max(0, static_cast<int>(defense) + bonus) * (unit.has_defended ? 1.2f : 1.f));
 }
 
 uint battlefield_t::get_unit_adjusted_hp(const battlefield_unit_t& unit) {
@@ -3637,7 +3637,7 @@ bool battlefield_t::recompute_unit_move_queue() {
 		auto comp = [this](battlefield_unit_t* a, battlefield_unit_t* b) {
 			if(get_unit_adjusted_initiative(*a) == get_unit_adjusted_initiative(*b)) {
 				if(get_unit_adjusted_speed(*a) == get_unit_adjusted_speed(*b))
-					return b->y > a->y; //for same initiative and speed, troops near top of screen move first
+					return b->troop_id < a->troop_id; //for same initiative and speed, troops move in the order placed in the hero troop bar, left to right
 				else
 					return get_unit_adjusted_speed(*a) > get_unit_adjusted_speed(*b);
 			}
@@ -3693,20 +3693,10 @@ bool battlefield_t::recompute_unit_move_queue() {
 			troop_offset++;
 		}		
 		
-		//todo: replace with comp and use std::reverse
-		auto comp_reversed = [](battlefield_unit_t* a, battlefield_unit_t* b) {
-			auto a_i = a->get_base_initiative();
-			auto b_i = b->get_base_initiative();
-			
-			if(a_i == b_i) //for same initiative, troops near top of screen move first //fixme: should be based on troop id instead(?)
-				return a->y < b->y;
-			else
-				return  a_i < b_i;
-		
-		};
-		
-		std::sort(attacker_wait_queue.begin(), attacker_wait_queue.end(), comp_reversed);
-		std::sort(defender_wait_queue.begin(), defender_wait_queue.end(), comp_reversed);
+		std::sort(attacker_wait_queue.begin(), attacker_wait_queue.end(), comp);
+		std::sort(defender_wait_queue.begin(), defender_wait_queue.end(), comp);
+		std::reverse(attacker_wait_queue.begin(), attacker_wait_queue.end());
+		std::reverse(defender_wait_queue.begin(), defender_wait_queue.end());
 		
 		//todo: factor out
 		while(attacker_wait_queue.size() || defender_wait_queue.size()) {
@@ -3718,8 +3708,12 @@ bool battlefield_t::recompute_unit_move_queue() {
 			else if(!d)
 				;
 			else {
-				if(d->get_base_initiative() < a->get_base_initiative())
+				if(get_unit_adjusted_initiative(*d) < get_unit_adjusted_initiative(*a))
 					take_from_attacker = false;
+				else if(get_unit_adjusted_initiative(*d) == get_unit_adjusted_initiative(*a)) {
+					if(get_unit_adjusted_speed(*d) < get_unit_adjusted_speed(*a))
+						take_from_attacker = false;
+				}
 			}
 
 			move_queue_slot_t troop_slot;
@@ -4015,7 +4009,7 @@ std::pair<uint32_t, uint16_t> battlefield_t::apply_healing_to_stack(uint32_t hea
 
 	uint32_t unit_max_hp = get_unit_adjusted_hp(unit);
 	uint32_t total_max_hp = unit.original_stack_size * unit_max_hp;
-	uint32_t current_total_hp = (unit.stack_size - 1) * unit_max_hp + unit.unit_health;
+	uint32_t current_total_hp = unit.stack_size == 0 ? 0 : (unit.stack_size - 1) * unit_max_hp + unit.unit_health;
 
 	uint32_t new_total_hp = std::min(current_total_hp + adjusted_healing, total_max_hp);
 	uint32_t actual_heal_amount = new_total_hp - current_total_hp;
