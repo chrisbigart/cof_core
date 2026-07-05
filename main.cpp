@@ -216,10 +216,6 @@ bool get_bool_option_or_default(const std::unordered_map<std::string, std::strin
 
 combat_scenario_spec_t build_default_scenario(std::mt19937& rng,
                                                            const std::unordered_map<std::string, std::string>& options) {
-        using combat_scenario_spec_t;
-        using hero_loadout_spec_t;
-        using troop_stack_spec_t;
-
         const int attacker_unit = get_option_or_default(options, "attacker_unit_type", 16);
         const int defender_unit = get_option_or_default(options, "defender_unit_type", 16);
         const int attacker_base_stack = get_option_or_default(options, "attacker_stack_size", 20);
@@ -235,7 +231,7 @@ combat_scenario_spec_t build_default_scenario(std::mt19937& rng,
 
         hero_loadout_spec_t attacker;
         attacker.player = PLAYER_1;
-        attacker.hero_class = HERO_KNIGHT;
+        attacker.hero_class = HERO_CLASS_KNIGHT;
         attacker.hero_id = 1;
         attacker.name = "RL Attacker";
         attacker.level = 1;
@@ -249,7 +245,7 @@ combat_scenario_spec_t build_default_scenario(std::mt19937& rng,
 
         hero_loadout_spec_t defender;
         defender.player = PLAYER_2;
-        defender.hero_class = HERO_KNIGHT;
+        defender.hero_class = HERO_CLASS_KNIGHT;
         defender.hero_id = 2;
         defender.name = "RL Defender";
         defender.level = 1;
@@ -272,9 +268,6 @@ combat_scenario_spec_t build_default_scenario(std::mt19937& rng,
 }
 
 action_mask_t legal_action_mask(const combat_observation_t& observation) {
-        using action_mask_t;
-        using combat_action_type_t;
-
         action_mask_t mask(ACTION_COUNT, 0);
         const auto auto_index = static_cast<std::size_t>(combat_action_type_t::AUTO_RESOLVE);
         mask[auto_index] = 1;
@@ -396,7 +389,7 @@ int main(int argc, char** argv) {
         combat_environment_t environment(game_instance, side);
 
         const auto hidden_layers = resolve_hidden_layers(options.hidden_layers);
-        CombatPolicyOptions policy_options;
+        CombatNetworkOptions policy_options;
         policy_options.hidden_layers = hidden_layers;
         policy_options.use_layer_norm = options.layer_norm;
 

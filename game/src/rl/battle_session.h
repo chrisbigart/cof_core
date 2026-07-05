@@ -16,7 +16,7 @@ struct troop_stack_spec_t {
 
 struct hero_loadout_spec_t {
         player_e player = PLAYER_1;
-        hero_class_e hero_class = HERO_KNIGHT;
+        hero_class_e hero_class = HERO_CLASS_KNIGHT;
         uint16_t hero_id = 0;
         std::string name;
         uint8_t level = 1;

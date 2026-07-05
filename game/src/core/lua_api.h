@@ -1,7 +1,6 @@
 #pragma once
 
-#include "lua.h"
-#include "lualib.h"
+#include "lua.hpp"
 
 #include "core/game.h"
 #include "core/adventure_map.h"

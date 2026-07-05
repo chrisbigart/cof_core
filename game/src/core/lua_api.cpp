@@ -34,8 +34,8 @@ int register_lua_functions(lua_State* L, game_t* game_ptr) {
 	
 	for(auto& finfo : lua_functions) {
 		auto name =  finfo.name.toUtf8();
-		lua_pushcfunction(L, finfo.fptr, name);
-		lua_setglobal(L, name);
+		lua_pushcfunction(L, finfo.fptr);
+		lua_setglobal(L, name.constData());
 	}
 	
 	// Create a new table
