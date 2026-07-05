@@ -1,17 +1,16 @@
 #pragma once
 
-#include <cctype>
 #include <string>
 #include <vector>
-#include <cstdint>
 
 typedef unsigned int uint;
-//make sure the integer type is big enough to store our battlefield coordinates
-//static_assert(pow(sizeof(sint) - 1, 2) - 1 > BATTLEFIELD_WIDTH);
 
-//typedef /*unsigned*/ short sint;
-typedef signed int sint;
-typedef unsigned int uint;
+#ifdef BUILD_WITH_UNREAL
+	#include "CoreMinimal.h"
+#else
+	#define UENUM(...)
+	typedef uint8_t uint8;
+#endif
 
 struct creature_t;
 struct talent_t;
@@ -22,17 +21,24 @@ struct spell_t;
 struct hero_t;
 struct hero_specialty_t;
 struct object_info_t;
-enum building_e : uint8_t;
+struct achievement_t;
+struct interactable_object_t;
+struct tree_brush_t;
+struct mountain_brush_t;
+struct decoration_brush_t;
+enum building_e : uint8;
 enum talent_e : uint8_t;
 enum skill_e : uint8_t;
 enum artifact_e : uint16_t;
 enum unit_type_e : uint8_t;
-enum spell_e : uint16_t;
+enum spell_e : uint8_t;
 enum town_type_e : uint8_t;
-enum hero_class_e : uint8_t;
+enum hero_class_e : uint16_t;
 enum buff_e : uint8_t;
 enum buff_type_e : uint8_t;
 enum hero_specialty_e : uint8_t;
+enum achievement_e : uint16_t;
+enum interactable_object_e : uint16_t;
 
 enum player_e : uint8_t {
 	PLAYER_NONE = 0,
@@ -56,9 +62,6 @@ enum resource_e : uint8_t {
 	RESOURCE_CRYSTALS,
 	RESOURCE_MERCURY,
 	RESOURCE_SULFUR
-	//h2/H3 resources
-	//RESOURCE_CRYSTAL_H2,
-	//RESOURCE_SULFUR_H2
 };
 
 struct buff_info_t {
@@ -89,8 +92,14 @@ public:
 	static int load_buildings(const std::string& path_prefix = std::string());
 	static int load_town_names(const std::string& path_prefix = std::string());
 	static int load_buffs(const std::string& path_prefix = std::string());
+	static int load_achievements(const std::string& path_prefix = std::string());
+	//for editor
+	static int load_tree_brushes(const std::string& path_prefix = std::string());
+	static int load_mountain_brushes(const std::string& path_prefix = std::string());
+	static int load_decoration_brushes(const std::string& path_prefix = std::string());
 	
-	static const object_info_t& get_object_info(int16_t asset_id);
+	static const object_info_t& get_object_info(interactable_object_e object_type, int16_t asset_id);
+	static const object_info_t& get_object_info(interactable_object_t* object);
 	static const talent_t& get_talent(talent_e talent_id);
 	static const creature_t& get_creature(unit_type_e unit_id);
 	static const artifact_t& get_artifact(artifact_e artifact_id);
@@ -98,6 +107,7 @@ public:
 	static const hero_specialty_t& get_specialty(hero_specialty_e specialty_id);
 	static const building_t& get_building(/*building_base_type_e base_type, */building_e building_id);
 	static const spell_t& get_spell(spell_e spell_id);
+	static const achievement_t& get_achievement(achievement_e id);
 	static const std::string get_random_town_name(town_type_e town_type);
 	static const buff_info_t& get_buff_info(buff_e buff_id);
 	
@@ -109,7 +119,13 @@ public:
 	static const std::vector<creature_t>& get_creatures() { return creatures; }
 	static const std::vector<spell_t>& get_spells() { return spells; }
 	static const std::vector<building_t>& get_buildings() { return buildings; }
-	
+	static const std::vector<object_info_t>& get_objects() { return objects; }
+	static const std::vector<achievement_t>& get_achievements() { return achievements; }
+	//for editor
+	static const std::vector<tree_brush_t>& get_tree_brushes() { return tree_brushes; }
+	static const std::vector<mountain_brush_t>& get_mountain_brushes() { return mountain_brushes; }
+	static const std::vector<decoration_brush_t>& get_decoration_brushes() { return decoration_brushes; }
+
 	static void add_or_update_custom_artifact(const artifact_t& artifact);
 	static artifact_e get_next_custom_artifact_id();
 
@@ -138,7 +154,12 @@ private:
 	static std::vector<hero_specialty_t> specialties;
 	static std::vector<spell_t> spells;
 	static std::vector<building_t> buildings;
+	static std::vector<achievement_t> achievements;
 	static std::vector<hero_t> heroes;
 	static std::vector<buff_info_t> buff_info;
 	static std::vector<std::pair<town_type_e, std::string>> town_names;
+	//for editor
+	static std::vector<tree_brush_t> tree_brushes;
+	static std::vector<mountain_brush_t> mountain_brushes;
+	static std::vector<decoration_brush_t> decoration_brushes;
 };

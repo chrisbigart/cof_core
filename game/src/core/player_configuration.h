@@ -1,9 +1,8 @@
 #pragma once
 
 #include <string>
-#include <vector>
 
-enum hero_class_e : uint8_t;
+enum hero_class_e : uint16_t;
 //enum player_color_e : uint8_t;
 
 #include "core/hero.h"
@@ -26,23 +25,19 @@ enum player_color_e : uint8_t {
 	PLAYER_COLOR_NEUTRAL
 };
 
-//todo: fixed-size types
 struct player_configuration_t {
 	player_e player_number = PLAYER_NONE;
 	player_color_e color = PLAYER_COLOR_NEUTRAL;
 	uint team = 0;
 	bool is_human = false;
 	std::string player_name;
-	/*hero_class_e*/
-	int selected_class = -1;
-	//main town?
-	std::vector<hero_class_e> allowed_classes = {HERO_CLASS_ALL};
+	hero_class_e selected_class = HERO_CLASS_RANDOM;
+	hero_class_e allowed_classes = HERO_CLASS_ALL;
 	player_type_e allowed_player_type = PLAYER_TYPE_HUMAN_OR_COMPUTER;
 	int starting_hero_id = -1;
+	bool is_hero_set_by_map = false;
 	bool was_class_random = false;
 	bool was_hero_random = false;
-	
-	//bool operator==(const player_configuration_t&) const = default;
 };
 
 

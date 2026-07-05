@@ -1,15 +1,12 @@
 #pragma once
 
-#include "core/magic_enum.hpp"
-
 #include <string>
-#include <sstream>
-#include <iostream>
 #include <vector>
+#include <random>
 
 #include "core/qt_headers.h"
+#include "core/magic_enum.hpp"
 
-//todo move to namespace
 
 inline std::string stream_read_string(QDataStream& stream, uint16_t max_length = 255) {
 	uint16_t length;
@@ -137,6 +134,31 @@ namespace utils {
 		return ((T)rand() / RAND_MAX) * (max - min) + min;
 	}
 
+	template<typename TContainer> const auto& rand_item(const TContainer& container) {
+		auto index = rand_range(0, (int)container.size() - 1);
+		return container[index];
+	}
+
+	template<typename T> T rand_range(const T& min, const T& max, std::mt19937_64& rng) {
+		std::uniform_int_distribution<T> dist(min, max);
+		return dist(rng);
+	}
+
+	template<typename T> T rand_rangef(const T& min, const T& max, std::mt19937_64& rng) {
+		std::uniform_real_distribution<T> dist(min, max);
+		return dist(rng);
+	}
+
+	template<typename TContainer> const auto& rand_item(const TContainer& container, std::mt19937_64& rng) {
+		auto index = rand_range(0, (int)container.size() - 1, rng);
+		return container[index];
+	}
+
+	inline bool rand_chance(const int percent_chance, std::mt19937_64& rng) {
+		std::uniform_int_distribution<int> dist(0, 99);
+		return dist(rng) < percent_chance;
+	}
+
 	///returns true percent_chance percent of the time
 	inline bool rand_chance(const int percent_chance) {
 		return (std::rand() % 100) < percent_chance;
@@ -149,45 +171,6 @@ namespace utils {
 		return (strm.str());
 	}
 	
-	template<typename T> void log_error(const T& msg) {
-		std::cerr << msg << std::endl;
-	}
-
-	template<typename T> void combat_log(const T& msg) {
-		std::cout << msg << std::endl;
-	}
-
-	inline QString to_camel_case(const QString& s) {
-		auto parts = s.split(' ', Qt::SkipEmptyParts);
-		for (int i = 0; i < parts.size(); ++i)
-			parts[i].replace(0, 1, parts[i][0].toUpper());
-
-		return parts.join(" ");
-	}
-
-	template<typename T> QString formatted_name_from_enum(T e) {
-		auto str = QString(magic_enum::enum_name(e).data());
-		auto pos = str.indexOf('_');
-		str = utils::to_camel_case(str.remove(0, pos+1).replace('_', ' ').toLower());
-		return str;
-	}
-
-	template<typename T> QString name_from_enum(T e) {
-		auto name = magic_enum::enum_name(e);
-		if(name.empty())
-			return "UNKOWN";
-		
-		return QString(name.data());
-	}
-
-	template<typename T> T get_enum_value(const QString& str) {
-		auto val = magic_enum::enum_cast<T>(str.trimmed().toStdString());
-		if(!val.has_value())
-			return (T)0;
-		
-		return val.value();
-	}
-
 	template<typename T, typename Ty> bool contains(const Ty& container, const T& item) {
 		return std::find(container.begin(), container.end(), item) != container.end();
 	}

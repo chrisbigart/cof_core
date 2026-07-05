@@ -1,7 +1,9 @@
 #include "core/game.h"
 #include "core/adventure_map.h"
+#include "core/utils_enum.h"
 
 #include <thread>
+#include <iostream>
 
 enum hero_role_e {
 	ROLE_SCOUT,
@@ -211,7 +213,7 @@ building_e game_t::ai_determine_which_building_to_build(town_t* town, bool is_ma
 		if(b == BUILDING_MARKETPLACE) score += 30;
 		if(b == BUILDING_TAVERN)      score += 25;
 		if(b == BUILDING_BLACKSMITH)  score += 15;
-		if(b == BUILDING_SHIPYARD)    score += 10;
+		//if(b == BUILDING_SHIPYARD)    score += 10;
 
 		// special buildings (up to you to define more logic later)
 		if(def.subtype >= BUILDING_BASE_TYPE_SPECIAL1)
@@ -449,15 +451,19 @@ ai_goal_t find_best_hero_goal(hero_t& hero, const adventure_map_t& map, const ga
 	if(hero.in_town) {
 		//are we a 'main' hero?
 		if(hero_roles.find(hero.id) != hero_roles.end() && hero_roles[hero.id] == ROLE_MAIN) {
-			auto town = (town_t*)map.get_interactable_object_for_tile(hero.x, hero.y);
-			if(game.ai_should_recruit_troops(&hero, town)) {
-				best_goal.goal = GOAL_RECRUIT_TROOPS;
-				best_goal.priority = 100;
-				best_goal.target_coord.x = hero.x;
-				best_goal.target_coord.y = hero.y;
-				best_goal.target_object = town;
-				//best_goal.target_object = get_town()
-				return best_goal;
+			auto obj = map.get_interactable_object_for_tile(hero.x, hero.y);
+			if(obj && obj->object_type == OBJECT_MAP_TOWN) {
+				auto town = (town_t*)obj;
+			
+				if(game.ai_should_recruit_troops(&hero, town)) {
+					best_goal.goal = GOAL_RECRUIT_TROOPS;
+					best_goal.priority = 100;
+					best_goal.target_coord.x = hero.x;
+					best_goal.target_coord.y = hero.y;
+					best_goal.target_object = town;
+					//best_goal.target_object = get_town()
+					return best_goal;
+				}
 			}
 		}
 	}
@@ -486,8 +492,7 @@ ai_goal_t find_best_hero_goal(hero_t& hero, const adventure_map_t& map, const ga
 		if(current_value > highest_value)
 		{
 // Check reachability *before* finalizing (get_route_cost_to_tile handles this)
-			auto target_tile = map.get_interactable_coordinate_for_object(obj);
-			int cost_to_target = map.get_route_cost_to_tile(&hero, target_tile.x, target_tile.y, &game);
+			int cost_to_target = map.get_route_cost_to_tile(&hero, obj->x, obj->y, &game);
 			if(cost_to_target != -1)
 			{ // Reachable?
 				highest_value = current_value;

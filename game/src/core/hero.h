@@ -1,11 +1,11 @@
 #pragma once
 
-#include "core/utils.h"
 #include "core/game_config.h"
 #include "core/artifact.h"
 #include "core/troop.h"
 #include "core/spell.h"
 #include "core/script.h"
+#include "core/achievements.h"
 
 enum terrain_type_e : uint8_t;
 
@@ -248,18 +248,22 @@ enum talent_e : uint8_t {
 	TALENT_MINDLESS_SUBSERVIENCE
 };
 
-enum hero_class_e : uint8_t {
-	HERO_KNIGHT,
-	HERO_BARBARIAN,
-	HERO_NECROMANCER,
-	HERO_SORCERESS,
-	HERO_WARLOCK,
-	HERO_WIZARD,
-	HERO_CUSTOM,
-	HERO_CLASS_NONE = 16,
-	HERO_CLASS_ALL,
-	HERO_CLASS_NON_BARBARIAN,
-	HERO_CLASS_NON_NECRO
+enum hero_class_e : uint16_t {
+	HERO_CLASS_NONE = 0,
+	HERO_CLASS_MULTIPLE = HERO_CLASS_NONE,
+	HERO_CLASS_KNIGHT = 1u << 1,
+	HERO_CLASS_BARBARIAN = 1u << 2,
+	HERO_CLASS_NECROMANCER = 1u << 3,
+	HERO_CLASS_SORCERESS = 1u << 4,
+	HERO_CLASS_WARLOCK = 1u << 5,
+	HERO_CLASS_WIZARD = 1u << 6,
+	//reserved for future classes
+	///
+	HERO_CLASS_CUSTOM = 1 << 15,
+	HERO_CLASS_ALL = 0xFFFF,
+	HERO_CLASS_RANDOM = HERO_CLASS_ALL,
+	HERO_CLASS_NON_BARBARIAN = (uint16_t)(HERO_CLASS_ALL & ~HERO_CLASS_BARBARIAN),
+	HERO_CLASS_NON_NECRO = (uint16_t)(HERO_CLASS_ALL & ~HERO_CLASS_NECROMANCER)	
 };
 
 enum hero_gender_e : uint8_t {
@@ -277,9 +281,11 @@ struct talent_t {
 };
 
 struct skill_t {
+	skill_t() { class_learnrate.fill(5); }
+
 	uint8_t asset_id;
 	skill_e skill_id;
-	uint8_t class_learnrate[10] = {5, 5, 5, 5, 5, 5, 5, 5, 5, 5};
+	std::array<uint8_t, 16> class_learnrate;
 	std::string name;
 	std::string description;
 };
@@ -311,8 +317,6 @@ struct temp_morale_effect_t {
 	temp_morale_effect_e effect_type = MORALE_EFFECT_NONE;
 	int8_t magnitude = 0;
 	int8_t duration = -1;
-	
-	//bool operator==(const temp_morale_effect_t&) const = default;
 };
 
 enum temp_luck_effect_e : uint8_t {
@@ -324,8 +328,6 @@ struct temp_luck_effect_t {
 	temp_luck_effect_e effect_type = LUCK_EFFECT_NONE;
 	int8_t magnitude = 0;
 	int8_t duration = -1;
-	
-	//bool operator==(const temp_luck_effect_t&) const = default;
 };
 
 enum hero_class_appearance_e : uint8_t {
@@ -500,6 +502,8 @@ struct hero_appearance_t {
 	hero_hair_color_appearance_e hair_color;
 	hero_mount_type_e mount_type = HERO_MOUNT_DEFAULT_HORSE;
 	hero_pet_type_e pet_type = HERO_PET_NONE;
+	cosmetic_item_e equipped_weapon = COSMETIC_WEAPON_EMPTY;
+	cosmetic_item_e equipped_offhand = COSMETIC_OFFHAND_EMPTY;
 };
 
 std::string get_temp_morale_effect_string(temp_morale_effect_e type, int magnitude);
@@ -540,14 +544,14 @@ struct hero_t {
 	std::string biography;
 	std::string race;
 	hero_gender_e gender = HERO_GENDER_MALE;
-	hero_appearance_t appereance;
+	hero_appearance_t appearance;
 	const std::string get_title() const;
 	const std::string get_class_name() const;
 	static const std::string get_class_name(hero_class_e hero_class);
 	
 	static const std::string get_secondary_skill_level_name(int level);
 	
-	hero_class_e hero_class = HERO_KNIGHT;
+	hero_class_e hero_class = HERO_CLASS_NONE;
 	hero_specialty_e specialty = SPECIALTY_UNKNOWN;
 	bool uncontrolled_by_human = false;
 	std::array<secondary_skill_t, game_config::HERO_SKILL_SLOTS> skills;
@@ -592,6 +596,7 @@ struct hero_t {
 	uint get_unit_speed(unit_type_e unit_type) const;
 	uint get_unit_initiative(unit_type_e unit_type) const;
 	int get_unit_morale(unit_type_e unit_type) const;
+	int get_unit_luck(unit_type_e unit_type) const;
 
 	int get_slowest_unit_speed_in_army() const;
 	int get_number_of_troop_alignments() const;
@@ -601,6 +606,7 @@ struct hero_t {
 	int get_artifact_effect_bonus_value(artifact_effect_e artifact_effect) const;
 	float get_spell_effect_multiplier(spell_e spell) const;
 	float get_spell_haste_percentage() const;
+	int get_specialty_skill_bonus_value(skill_e skill_id, int value_offset) const;
 
 	bool add_temporary_morale_effect(temp_morale_effect_e type, int8_t magnitude, int8_t duration = -1);
 	bool add_temporary_luck_effect(temp_luck_effect_e type, int8_t magnitude, int8_t duration = -1);
@@ -669,7 +675,7 @@ struct hero_t {
 	uint16_t mana = 10; //rage for barbarians
 	float get_mana_percentage_remaining() const;
 	uint16_t get_maximum_mana() const;
-	uint16_t get_daily_mana_regen() const;
+	int get_daily_mana_regen() const;
 	//bool can_learn_spells_outside_class_restrictions = false;
 	static std::vector<spell_school_e> get_allowed_schools(hero_class_e hero_class);
 	static std::vector<hero_specialty_e> get_allowed_specialties(hero_class_e hero_class);
@@ -693,10 +699,10 @@ struct hero_t {
 	
 	std::vector<script_t> scripts;
 	
-	void set_visited_object(interactable_object_t* object, bool visited = true);
-	bool has_object_been_visited(interactable_object_t* object) const;
+	void set_visited_object(uint16_t object_id, bool visited = true);
+	bool has_object_been_visited(uint16_t object_id) const;
 	
-	std::vector<uint32_t> visited_objects;
+	std::vector<uint16_t> visited_objects;
 	std::vector<skill_e> enabled_skills;
 };
 
@@ -714,30 +720,30 @@ QDataStream& operator>>(QDataStream& stream, hero_appearance_t& appearance);
 inline std::vector<spell_school_e> hero_t::get_allowed_schools(hero_class_e hero_class) {
 	std::vector<spell_school_e> result;
 	switch (hero_class) {
-		case HERO_KNIGHT:
+		case HERO_CLASS_KNIGHT:
         result.push_back(SCHOOL_HOLY);
 		break;
-	case HERO_BARBARIAN:
+	case HERO_CLASS_BARBARIAN:
 		break;
-	case HERO_NECROMANCER:
+	case HERO_CLASS_NECROMANCER:
         result.push_back(SCHOOL_DEATH);
         result.push_back(SCHOOL_DESTRUCTION);
 		break;
-	case HERO_SORCERESS:
+	case HERO_CLASS_SORCERESS:
         result.push_back(SCHOOL_NATURE);
         result.push_back(SCHOOL_ARCANE);
         result.push_back(SCHOOL_HOLY);
 		break;
-	case HERO_WARLOCK:
+	case HERO_CLASS_WARLOCK:
         result.push_back(SCHOOL_DESTRUCTION);
         result.push_back(SCHOOL_DEATH);
 		break;
-	case HERO_WIZARD:
+	case HERO_CLASS_WIZARD:
         result.push_back(SCHOOL_ARCANE);
         result.push_back(SCHOOL_NATURE);
         result.push_back(SCHOOL_HOLY);
 		break;
-	case HERO_CUSTOM:
+	case HERO_CLASS_CUSTOM:
 	default:
 		break;
 	}
@@ -747,37 +753,37 @@ inline std::vector<spell_school_e> hero_t::get_allowed_schools(hero_class_e hero
 inline std::vector<hero_specialty_e> hero_t::get_allowed_specialties(hero_class_e hero_class) {
 	std::vector<hero_specialty_e> result;
 	switch(hero_class) {
-		case HERO_KNIGHT:
+		case HERO_CLASS_KNIGHT:
 			result.push_back(SPECIALTY_LOGISTICS);
 			result.push_back(SPECIALTY_PATHFINDING);
 			break;
-		case HERO_BARBARIAN:
+		case HERO_CLASS_BARBARIAN:
 			result.push_back(SPECIALTY_LOGISTICS);
 			result.push_back(SPECIALTY_PATHFINDING);
 			break;
-		case HERO_NECROMANCER:
+		case HERO_CLASS_NECROMANCER:
 			result.push_back(SPECIALTY_INTELLIGENCE);
 			result.push_back(SPECIALTY_SORCERY);
 			result.push_back(SPECIALTY_SPELL_PENETRATION);
 			break;
-		case HERO_SORCERESS:
+		case HERO_CLASS_SORCERESS:
 			result.push_back(SPECIALTY_INTELLIGENCE);
 			result.push_back(SPECIALTY_SORCERY);
 			result.push_back(SPECIALTY_SPELL_PENETRATION);
 			result.push_back(SPECIALTY_LOGISTICS);
 			result.push_back(SPECIALTY_PATHFINDING);
 			break;
-		case HERO_WARLOCK:
+		case HERO_CLASS_WARLOCK:
 			result.push_back(SPECIALTY_INTELLIGENCE);
 			result.push_back(SPECIALTY_SORCERY);
 			result.push_back(SPECIALTY_SPELL_PENETRATION);
 			break;
-		case HERO_WIZARD:
+		case HERO_CLASS_WIZARD:
 			result.push_back(SPECIALTY_INTELLIGENCE);
 			result.push_back(SPECIALTY_SORCERY);
 			result.push_back(SPECIALTY_SPELL_PENETRATION);
 			break;
-		case HERO_CUSTOM:
+		case HERO_CLASS_CUSTOM:
 		default:
 			break;
 	}

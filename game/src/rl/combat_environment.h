@@ -1,12 +1,9 @@
 #pragma once
 
-#include "rl/battle_session.h"
-#include "rl/combat_observation.h"
+#include "battle_session.h"
+#include "combat_observation.h"
 
 #include <tuple>
-
-namespace rl {
-namespace combat {
 
 constexpr std::size_t ACTION_COUNT = 3;
 
@@ -28,6 +25,9 @@ public:
 
         combat_session_t& session() { return session_instance; }
         const combat_session_t& session() const { return session_instance; }
+        std::vector<battle_action_t> action_history;
+
+        bool record_actions = false;
 
 private:
         void ensure_agent_turn();
@@ -37,9 +37,4 @@ private:
         bool scenario_ready = false;
         controlled_side_t side_controlled = controlled_side_t::ATTACKER;
 };
-
-combat_action_spec_t action_from_type(combat_action_type_t type);
-
-} // namespace combat
-} // namespace rl
 

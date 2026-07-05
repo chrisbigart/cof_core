@@ -1,6 +1,6 @@
 #pragma once
 
-#include "rl/battle_sim.h"
+#include "battle_sim.h"
 
 #include "core/hero.h"
 #include "core/troop.h"
@@ -8,9 +8,6 @@
 #include <array>
 #include <string>
 #include <vector>
-
-namespace rl {
-namespace combat {
 
 struct troop_stack_spec_t {
         unit_type_e unit_type = UNIT_UNKNOWN;
@@ -52,10 +49,6 @@ enum class combat_action_type_t : uint8_t {
         AUTO_RESOLVE = 2,
 };
 
-struct combat_action_spec_t {
-        combat_action_type_t type = combat_action_type_t::WAIT;
-};
-
 class combat_session_t {
 public:
         explicit combat_session_t(game_t& game_instance);
@@ -65,22 +58,7 @@ public:
         battle_result_e reset(const combat_scenario_spec_t& spec);
 
         battle_result_e step();
-        bool apply_action(const combat_action_spec_t& action);
-
-        const combat_scenario_spec_t& scenario() const { return scenario_spec; }
-
-        hero_t& attacker();
-        const hero_t& attacker() const;
-        hero_t& defender();
-        const hero_t& defender() const;
-
-        battlefield_t& battlefield();
-        const battlefield_t& battlefield() const;
-
-        game_t& game();
-        const game_t& game() const;
-
-private:
+        bool apply_action(combat_action_type_t action);
         void apply_loadout(const hero_loadout_spec_t& spec, hero_t& hero, bool is_attacker);
         void apply_troops(const hero_loadout_spec_t& spec, hero_t& hero);
         void apply_talents(const hero_loadout_spec_t& spec, hero_t& hero);
@@ -93,7 +71,4 @@ private:
         hero_t defender_hero;
         bool scenario_loaded = false;
 };
-
-} // namespace combat
-} // namespace rl
 

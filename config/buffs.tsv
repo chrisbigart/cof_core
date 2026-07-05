@@ -7,7 +7,7 @@ BUFF_SUMMONED			BUFF_TYPE_INHERENT	Summoned	Disappears at the end of combat.
 BUFF_NO_MELEE_PENALTY			BUFF_TYPE_INHERENT	No Melee Penalty	Performs melee attacks at full damage.
 BUFF_SHOOTS_TWICE			BUFF_TYPE_INHERENT	Shoots Twice	Performs two ranged attacks.
 BUFF_UNLIMITED_SHOTS			BUFF_TYPE_INHERENT	Unlimited Shots	Never runs out of ammo.
-BUFF_NO_ENEMY_RETALIATION			BUFF_TYPE_INHERENT	Untouchable	Enemies cannot retaliate against this creature’s attacks.
+BUFF_NO_ENEMY_RETALIATION			BUFF_TYPE_INHERENT	Untouchable	Enemies cannot retaliate against this creature's attacks.
 BUFF_MULTIPLE_RETAILIATIONS			BUFF_TYPE_INHERENT	Counter Strike	Can retaliate {x} additional times per round.
 BUFF_UNLIMITED_RETALIATIONS			BUFF_TYPE_INHERENT	Unlimited Retaliations	Can retaliate an unlimited number of times.
 BUFF_ATTACK_ALL_ADJACENT_UNITS			BUFF_TYPE_INHERENT	Multi Headed	Attacks all adjacent units.
@@ -20,12 +20,12 @@ BUFF_REDUCED_DAMAGE_FROM_ARROWS			BUFF_TYPE_INHERENT	Porous	Takes {x}% less dama
 BUFF_VAMPIRE_LIFESTEAL			BUFF_TYPE_INHERENT	Lifesteal	Gains life equal to {x}% of damage done; can revive dead units.
 BUFF_GHOST_SOULSTEAL			BUFF_TYPE_INHERENT	Soulsteal	Stack gains 1 unit per unit killed.
 BUFF_RANGED_CAN_SHOOT_ADJACENT			BUFF_TYPE_INHERENT	Trickster	Can shoot even when units are adjacent.
-BUFF_NO_RANGE_PENALTY			BUFF_TYPE_INHERENT	Precision Shot	No range or castle wall penalty for ranged attacks.
+BUFF_NO_RANGE_PENALTY			BUFF_TYPE_INHERENT	Precision Shot	No distance or castle wall penalty for ranged attacks.
 BUFF_DOUBLE_DAMAGE			BUFF_TYPE_INHERENT	Double Damage	{x}% chance to deal double damage.
 BUFF_DRAGON_BREATH_ATTACK			BUFF_TYPE_INHERENT	Fire Breath	Attacks also deal damage to the hex directly behind it.
 BUFF_TROLL_REGENERATION			BUFF_TYPE_INHERENT	Regeneration	Heals to full life at the start of each round.
-BUFF_BEHEMOTH_CLAWS			BUFF_TYPE_INHERENT	Shredding Claws	Ignores {x}% of target’s defense.
-BUFF_NIX_SHIELD			BUFF_TYPE_INHERENT	Impenetrable Armour	Unit ignores {x}% of attacker’s Attack.
+BUFF_BEHEMOTH_CLAWS			BUFF_TYPE_INHERENT	Shredding Claws	Ignores {x}% of target's defense.
+BUFF_NIX_SHIELD			BUFF_TYPE_INHERENT	Impenetrable Armour	Unit ignores {x}% of attacker's Attack.
 BUFF_LUCK_AURA			BUFF_TYPE_INHERENT	Luck Aura	
 BUFF_UNICORN_RESISTANCE			BUFF_TYPE_INHERENT	Antimagic Aura	
 BUFF_DRAGON_MAGIC_DAMPER			BUFF_TYPE_INHERENT	Magic Damper	All magical effects reduced by {x}%.
@@ -92,7 +92,7 @@ BUFF_THORNS	40		BUFF_TYPE_POSITIVE	Holy Thorns	Attackers take {x} as Holy damage
 BUFF_ANGELS_WINGS	21		BUFF_TYPE_POSITIVE	Winged	Unit is ably to fly.
 BUFF_MANA_SHIELD	242		BUFF_TYPE_POSITIVE	Buffered	Protected by Mana Shield.
 BUFF_CRIPPLED	240		BUFF_TYPE_NEGATIVE	Crippled	Dealing {x}% less damage.
-BUFF_SPINS_WEBS			BUFF_TYPE_INHERENT	Web Spinner	Can cast ‘Spin Web’.
+BUFF_SPINS_WEBS			BUFF_TYPE_INHERENT	Web Spinner	Can cast ‘Spin Web'.
 BUFF_FIRST_STRIKE	158		BUFF_TYPE_POSITIVE	First Strike	+2 speed and +1 initiative.
 BUFF_DIVINE_INSPIRATION	96		BUFF_TYPE_POSITIVE	Inspired	+{x} to Attack, Defense, Speed, and Initiative.
 BUFF_OVERWHELMED	119		BUFF_TYPE_NEGATIVE	Overwhelmed	Taking {x}% more damage.

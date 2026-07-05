@@ -9,8 +9,17 @@
 
 struct game_t;
 
-enum building_e : uint8_t {
+#ifdef BUILD_WITH_UNREAL
+	#include "CoreMinimal.h"
+#else
+	#define UENUM(...)
+	typedef uint8_t uint8;
+#endif
+
+UENUM(BlueprintType)
+enum building_e : uint8 {
 	BUILDING_NONE,
+	BUILDING_TENT,
 	BUILDING_FORT,
 	BUILDING_CASTLE,
 	BUILDING_CAPTAINS_QUARTERS,
@@ -19,21 +28,36 @@ enum building_e : uint8_t {
 	BUILDING_MARKETPLACE,
 	BUILDING_AUCTION_HOUSE,
 	BUILDING_TAVERN,
-	BUILDING_SHIPYARD,
-	BUILDING_WAR_MACHINE_YARD,
+	BUILDING_STATUE,
 	BUILDING_MAGE_GUILD_1,
 	BUILDING_MAGE_GUILD_2,
 	BUILDING_MAGE_GUILD_3,
 	BUILDING_MAGE_GUILD_4,
 	BUILDING_MAGE_GUILD_5,
-	BUILDING_LIGHTHOUSE,
 	BUILDING_LIBRARY_ANNEX,
+	BUILDING_ARCANE_ARCHIVES,
+	BUILDING_BELL_TOWER,
+	BUILDING_LOOKOUT_ROCK,
 	BUILDING_DEN_OF_THIEVES,
+	BUILDING_DARK_PORTAL,
+	BUILDING_POWER_AMPLIFIER,
+	BUILDING_DEMONIC_SHRINE,
 	BUILDING_RAINBOW,
+	BUILDING_WISHING_WELL,
+	BUILDING_LUNAR_FOCUS,
+	BUILDING_ENCHANTED_FOREST,
+	BUILDING_LIGHTHOUSE,
 	BUILDING_ALEHOUSE,
 	BUILDING_BLACKSMITH,
 	BUILDING_SENATE_CHAMBERS,
+	BUILDING_ARENA,
+	BUILDING_BONFIRE,
+	BUILDING_BARBARIAN_ARMORY,
+	BUILDING_WAR_MACHINE_YARD,
 	BUILDING_GRAVEYARD,
+	BUILDING_DARK_ENERGY_AMPLIFIER,
+	BUILDING_SOUL_COMMUNE,
+	BUILDING_STORM,
 	BUILDING_CEMETERY,
 	BUILDING_SOUL_TOMB,
 	BUILDING_MANOR,
@@ -77,8 +101,10 @@ enum building_base_type_e : uint8_t {
 	BUILDING_BASE_TYPE_FORT,
 	BUILDING_BASE_TYPE_MARKETPLACE,
 	BUILDING_BASE_TYPE_TAVERN,
-	BUILDING_BASE_TYPE_SHIPYARD,
-	BUILDING_BASE_TYPE_WAR_MACHINE_YARD,
+	BUILDING_BASE_TYPE_STATUE,
+	BUILDING_BASE_TYPE_CAPTAINS_QUARTERS,
+	BUILDING_BASE_TYPE_LEFT_TURRET,
+	BUILDING_BASE_TYPE_RIGHT_TURRET,
 	BUILDING_BASE_TYPE_MAGE_GUILD,
 	BUILDING_BASE_TYPE_SPECIAL1 = 100,
 	BUILDING_BASE_TYPE_SPECIAL2,
@@ -114,12 +140,12 @@ struct building_t {
 	std::string name;
 	std::string description;
 	resource_group_t cost;
-	hero_class_e matching_faction;// = HERO_CLASS_ALL;
+	hero_class_e matching_faction = HERO_CLASS_NONE;
 	unit_type_e generated_creature = UNIT_UNKNOWN;
 	uint weekly_growth = 0;
 	//float town_xpos;
 	//float town_ypos;
-	//uint8_t town_zpos;	
+	//uint8_t town_zpos;
 	
 	std::vector<building_e> prerequisites;
 	
@@ -141,10 +167,10 @@ enum town_type_e : uint8_t {
 	TOWN_UNKNOWN = 0,
 	TOWN_KNIGHT,
 	TOWN_BARBARIAN,
-	TOWN_WIZARD,
-	TOWN_WARLOCK,
 	TOWN_NECROMANCER,
 	TOWN_SORCERESS,
+	TOWN_WARLOCK,
+	TOWN_WIZARD,
 	TOWN_CUSTOM
 	//TOWN_COMBINATION,
 };
@@ -186,6 +212,7 @@ struct town_t : interactable_object_t {
 	
 	bool build_building(building_e building_type, game_t& gamestate); //should move to game_t / client?
 	void setup_buildings();
+	void setup_default_buildings();
 	void setup_default_spells();
 	
 	static hero_class_e town_type_to_hero_class(town_type_e town_type);

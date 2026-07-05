@@ -2,11 +2,18 @@
 #include "core/interactable_object.h"
 #include "core/adventure_map.h"
 #include "core/qt_headers.h"
-#include "core/magic_enum.hpp"
+#include "core/utils.h"
+#include "core/utils_enum.h"
 
 #include <random>
 #include <chrono>
 #include <vector>
+#include <bit>
+
+//helper function for getting the last (highest) value of an enum
+template<typename T> T max_enum_val() {
+	return (T)(magic_enum::enum_values<T>().back());
+}
 
 QDataStream& operator<<(QDataStream& stream, const hero_appearance_t& appearance) {
 	stream << (uint8_t)appearance.class_appearance
@@ -81,7 +88,7 @@ QDataStream& operator<<(QDataStream& stream, const hero_t& hero) {
 	stream_write_vector(stream, hero.visited_objects);
 
 	stream << hero.outlaw_bonus;
-	stream << hero.appereance;
+	stream << hero.appearance;
 
 	stream_write_vector(stream, hero.enabled_skills);
 
@@ -128,7 +135,7 @@ QDataStream& operator>>(QDataStream& stream, hero_t& hero) {
 	stream_read_vector(stream, hero.visited_objects);
 	
 	stream >> hero.outlaw_bonus;
-	stream >> hero.appereance;
+	stream >> hero.appearance;
 
 	stream_read_vector(stream, hero.enabled_skills);
 
@@ -144,6 +151,25 @@ QDataStream& operator>>(QDataStream& stream, hero_t& hero) {
 	hero.biography = biography.toStdString();
 
 	return stream;
+}
+
+template<> hero_class_e utils::get_enum_value<hero_class_e>(const QString& str) {
+	auto s = str.trimmed().toStdString();
+
+	if(s == "HERO_CLASS_MULTIPLE" || s == "HERO_CLASS_NONE") return HERO_CLASS_NONE;
+
+	if(s == "HERO_CLASS_KNIGHT") return HERO_CLASS_KNIGHT;
+	if(s == "HERO_CLASS_BARBARIAN") return HERO_CLASS_BARBARIAN;
+	if(s == "HERO_CLASS_NECROMANCER") return HERO_CLASS_NECROMANCER;
+	if(s == "HERO_CLASS_SORCERESS") return HERO_CLASS_SORCERESS;
+	if(s == "HERO_CLASS_WARLOCK") return HERO_CLASS_WARLOCK;
+	if(s == "HERO_CLASS_WIZARD") return HERO_CLASS_WIZARD;
+	if(s == "HERO_CLASS_CUSTOM") return HERO_CLASS_CUSTOM;
+	if(s == "HERO_CLASS_ALL" || s == "HERO_CLASS_RANDOM") return HERO_CLASS_ALL;
+	if(s == "HERO_CLASS_NON_BARBARIAN") return HERO_CLASS_NON_BARBARIAN;
+	if(s == "HERO_CLASS_NON_NECRO") return HERO_CLASS_NON_NECRO;
+
+	return HERO_CLASS_NONE;
 }
 
 std::string get_temp_morale_effect_string(temp_morale_effect_e type, int magnitude) {
@@ -171,38 +197,38 @@ stat_distribution_t hero_t::get_stat_distribution_for_class(hero_class_e hero_cl
 	constexpr int switch_level = 10;
 	
 	switch(hero_class) {
-		case HERO_KNIGHT:
+		case HERO_CLASS_KNIGHT:
 			if(level < switch_level)
 				return {35,45,10,10};
 			else
 				return {30,30,20,20};
-		case HERO_BARBARIAN:
+		case HERO_CLASS_BARBARIAN:
 		  if(level < switch_level)
 			  return {55, 25, 10, 10};
 		  else
 			  return {40, 30, 15, 15};
-		case HERO_NECROMANCER:
+		case HERO_CLASS_NECROMANCER:
 		  if(level < switch_level)
 			  return {30, 30, 20, 20};
 		  else
 			  return {25, 25, 25, 25};
-		case HERO_SORCERESS:
+		case HERO_CLASS_SORCERESS:
 		  if(level < switch_level)
 			  return {20, 20, 30, 30};
 		  else
 			  return {25, 25, 25, 25};
-		case HERO_WARLOCK:
+		case HERO_CLASS_WARLOCK:
 		  if(level < switch_level)
 			  return {10, 10, 60, 20};
 		  else
 			  return {15, 15, 45, 25};
-		case HERO_WIZARD:
+		case HERO_CLASS_WIZARD:
 		  if(level < switch_level)
 			  return {15, 15, 30, 40};
 		  else
 			  return {20, 20, 30, 30};
 		
-		case HERO_CUSTOM:
+		case HERO_CLASS_CUSTOM:
 			break;
 	}
 	
@@ -230,11 +256,23 @@ template<typename T> T get_skill_value(const T& base, const T& per_level, int sk
 //	return (T)(base + (per_level * (skill_level-1)));
 //}
 
-static const char* class_names[] = { "Paladin", "Barbarian", "Necromancer", "Enchantress", "Warlock", "Wizard", "Unknown" };
-
 const std::string hero_t::get_class_name(hero_class_e hero_class) {
-	assert(hero_class < sizeof(class_names));
-	return QObject::tr(class_names[(int)hero_class]).toStdString();
+	switch (hero_class) {
+		case HERO_CLASS_KNIGHT:
+			return QObject::tr("Paladin").toStdString();
+		case HERO_CLASS_BARBARIAN:
+			return QObject::tr("Barbarian").toStdString();
+		case HERO_CLASS_NECROMANCER:
+			return QObject::tr("Necromancer").toStdString();
+		case HERO_CLASS_SORCERESS:
+			return QObject::tr("Enchantress").toStdString();
+		case HERO_CLASS_WARLOCK:
+			return QObject::tr("Warlock").toStdString();
+		case HERO_CLASS_WIZARD:
+			return QObject::tr("Wizard").toStdString();
+		default:
+			return QObject::tr("Unknown").toStdString();
+	}
 }
 
 const std::string hero_t::get_secondary_skill_level_name(int level) {
@@ -424,19 +462,20 @@ uint16_t hero_t::get_maximum_dark_energy() const {
 }
 
 int hero_t::get_number_of_troop_alignments() const {
-	constexpr auto NUM_FACTIONS = 10; //magic_enum::enum_count<hero_class_e>();
-	std::array<int, NUM_FACTIONS> has_alignment{};
-	
+	uint32_t faction_mask = 0;
+
 	for(const auto& tr : troops) {
 		if(tr.unit_type == UNIT_UNKNOWN)
 			continue;
 		
 		const auto& cr = game_config::get_creature(tr.unit_type);
-		assert(cr.faction < NUM_FACTIONS); //fixme
-		has_alignment[cr.faction] = 1;
+		if(cr.faction == HERO_CLASS_ALL || cr.faction == HERO_CLASS_NON_BARBARIAN || cr.faction == HERO_CLASS_NON_NECRO)
+			continue;
+
+		faction_mask |= cr.faction;
 	}
 	
-	return std::accumulate(has_alignment.begin(), has_alignment.end(), 0);
+	return std::popcount(faction_mask);
 }
 
 bool hero_t::has_no_troops_in_army() const {
@@ -562,7 +601,7 @@ bool hero_t::does_artifact_fit_in_slot(artifact_slot_e artifact_slot, uint hero_
 	if(artifact_slot == SLOT_RING && hero_slot == SLOT_RING_2)
 		return true;
 	
-	if(hero_class == HERO_BARBARIAN && artifact_slot == SLOT_WEAPON && hero_slot == SLOT_SHIELD)
+	if(hero_class == HERO_CLASS_BARBARIAN && artifact_slot == SLOT_WEAPON && hero_slot == SLOT_SHIELD)
 		return true;
 	
 	return false;
@@ -800,7 +839,7 @@ bool hero_t::get_ballista_manual_control() const {
 
 const std::string hero_t::get_title() const {
 	if(title.empty())
-		return QObject::tr("the").toStdString() + " " + get_class_name();
+		return QObject::tr("the %1").arg(QString::fromStdString(get_class_name())).toStdString();
 	else
 		return title;
 }
@@ -893,7 +932,7 @@ void hero_t::init_hero(int day, terrain_type_e starting_terrain) {
 	move_necromancy_to_top_slot();
 	init_talents();
 	init_army();
-	mana = (hero_class == HERO_BARBARIAN ? 0 : get_maximum_mana());
+	mana = (hero_class == HERO_CLASS_BARBARIAN ? 0 : get_maximum_mana());
 	dark_energy = get_maximum_dark_energy();
 	new_day(day, starting_terrain);
 	//fixme: temporary hack
@@ -1016,7 +1055,6 @@ bool hero_t::is_talent_position_unlocked(int position) const {
 	return false;
 }
 
-
 int hero_t::get_megalomania_artifact_count() const {
 	assert(has_talent(TALENT_MEGALOMANIA));
 	int total = 0;
@@ -1081,9 +1119,9 @@ bool hero_t::learn_spell(spell_e spell_id) {
 
 bool hero_t::can_learn_spell_type(int spell_level, spell_school_e school) const {
 	if(school == SCHOOL_WARCRY)
-		return hero_class == HERO_BARBARIAN;
+		return hero_class == HERO_CLASS_BARBARIAN;
 	
-	if(hero_class == HERO_BARBARIAN)
+	if(hero_class == HERO_CLASS_BARBARIAN)
 		return false;
 	
 	if(spell_level < 3) //unrestricted_spells == true
@@ -1095,31 +1133,31 @@ bool hero_t::can_learn_spell_type(int spell_level, spell_school_e school) const 
 	if(school == SCHOOL_NATURE) {
 		if((get_secondary_skill_level(SKILL_NATURE_MAGIC) + 2) >= spell_level)
 			return true;
-		if(hero_class == HERO_SORCERESS || hero_class == HERO_WIZARD)
+		if(hero_class == HERO_CLASS_SORCERESS || hero_class == HERO_CLASS_WIZARD)
 			return true;
 	}
 	else if(school == SCHOOL_HOLY) {
 		if(((get_secondary_skill_level(SKILL_HOLY_MAGIC) + 2) >= spell_level) || has_talent(TALENT_PATH_OF_THE_PIOUS))
 			return true;
-		if(hero_class == HERO_KNIGHT || hero_class == HERO_WIZARD)
+		if(hero_class == HERO_CLASS_KNIGHT || hero_class == HERO_CLASS_WIZARD)
 			return true;
 	}
 	else if(school == SCHOOL_ARCANE) {
 		if(((get_secondary_skill_level(SKILL_ARCANE_MAGIC) + 2) >= spell_level) || has_talent(TALENT_PATH_OF_THE_MAGI))
 			return true;
-		if(hero_class == HERO_WARLOCK || hero_class == HERO_WIZARD)
+		if(hero_class == HERO_CLASS_WARLOCK || hero_class == HERO_CLASS_WIZARD)
 			return true;
 	}
 	else if(school == SCHOOL_DESTRUCTION) {
 		if(((get_secondary_skill_level(SKILL_DESTRUCTION_MAGIC) + 2) >= spell_level) || has_talent(TALENT_DESTROYER))
 			return true;
-		if(hero_class == HERO_WARLOCK)
+		if(hero_class == HERO_CLASS_WARLOCK)
 			return true;
 	}
 	else if(school == SCHOOL_DEATH) {
 		if(get_secondary_skill_level(SKILL_DEATH_MAGIC) || has_talent(TALENT_THE_DARK_ARTS))
 			return true;
-		if(hero_class == HERO_NECROMANCER)
+		if(hero_class == HERO_CLASS_NECROMANCER)
 			return true;
 	}
 	
@@ -1158,8 +1196,9 @@ void hero_t::new_day(int day, terrain_type_e starting_terrain) {
 	start_of_day_y = y;
 	wormhole_casts_today = 0;
 	mana_battery_casts_today = 0;
-	
-	mana = std::min(mana + get_daily_mana_regen(), (int)get_maximum_mana());
+
+	int current_val = mana; //regen can be negative, cast to signed value first
+	mana = std::clamp(current_val + get_daily_mana_regen(), 0, (int)get_maximum_mana());
 }
 
 bool hero_t::move_artifacts_in_backpack(uint from_slot, uint to_slot) {
@@ -1343,7 +1382,7 @@ float hero_t::get_mana_percentage_remaining() const {
 }
 
 uint16_t hero_t::get_maximum_mana() const {
-	if(hero_class == HERO_BARBARIAN)
+	if(hero_class == HERO_CLASS_BARBARIAN)
 		return get_effective_knowledge() * 5;
 
 	float modifier = 1.0f;
@@ -1354,7 +1393,38 @@ uint16_t hero_t::get_maximum_mana() const {
 	return std::round((get_effective_knowledge() * 10) * modifier);
 }
 
-uint16_t hero_t::get_daily_mana_regen() const {
+int hero_t::get_specialty_skill_bonus_value(skill_e skill_id, int value_offset) const {
+	if(specialty == SPECIALTY_INTELLIGENCE && value_offset == 0)
+		return (int)((.1f + (0.01 * level)) * 100);
+	
+	//magic school specialties: +1% effectiveness per hero level (2nd value in description)
+	if(value_offset == 1) {
+		if(specialty == SPECIALTY_ARCANE_MAGIC && skill_id == SKILL_ARCANE_MAGIC) return level;
+		if(specialty == SPECIALTY_HOLY_MAGIC && skill_id == SKILL_HOLY_MAGIC) return level;
+		if(specialty == SPECIALTY_NATURE_MAGIC && skill_id == SKILL_NATURE_MAGIC) return level;
+		if(specialty == SPECIALTY_DESTRUCTION_MAGIC && skill_id == SKILL_DESTRUCTION_MAGIC) return level;
+		if(specialty == SPECIALTY_DEATH_MAGIC && skill_id == SKILL_DEATH_MAGIC) return level;
+	}
+
+	//flat skill effectiveness bonuses (1st value in description)
+	if(value_offset == 0) {
+		if(specialty == SPECIALTY_SORCERY && skill_id == SKILL_SORCERY) return 5;
+		if(specialty == SPECIALTY_SPELL_PENETRATION && skill_id == SKILL_SPELL_PENETRATION) return 10;
+		if(specialty == SPECIALTY_LOGISTICS && skill_id == SKILL_LOGISTICS) return 5;
+		if(specialty == SPECIALTY_RESISTANCE && skill_id == SKILL_RESISTANCE) return 15;
+		if(specialty == SPECIALTY_OFFENSE && skill_id == SKILL_OFFENSE) return 10;
+		if(specialty == SPECIALTY_DEFENSE && skill_id == SKILL_DEFENSE) return 5;
+		if(specialty == SPECIALTY_SPELL_HASTE && skill_id == SKILL_SPELL_HASTE) return 5;
+		if(specialty == SPECIALTY_PATHFINDING && skill_id == SKILL_PATHFINDING) return 10;
+	}
+
+	return 0;
+}
+
+int hero_t::get_daily_mana_regen() const {
+	if(hero_class == HERO_CLASS_BARBARIAN)
+		return -1;
+
 	int value = 1;
 
 	if(has_talent(TALENT_REPLENISHMENT))
@@ -1398,6 +1468,7 @@ uint hero_t::get_unit_magic_resistance(unit_type_e unit_type, magic_damage_e dam
 	if(specialty == SPECIALTY_RESISTANCE)
 		resistance_skill_value += 0.15;
 
+
 	double vulnerability = 1.0 - resistance_skill_value;
 	
 	if(has_talent(TALENT_NATURAL_RESISTANCE))
@@ -1425,6 +1496,14 @@ uint hero_t::get_unit_magic_resistance(unit_type_e unit_type, magic_damage_e dam
 	if(damage_type == MAGIC_DAMAGE_FIRE && is_artifact_in_effect(ARTIFACT_RUBY_RING))
 		vulnerability *= 0.5; //50% resistance
 	
+	if(unit_type == UNIT_RED_DRAGON) { // == BUFF_DRAGON_MAGIC_DAMPER)
+		float value = .8f;
+		if(has_talent(TALENT_DRAGON_MASTER))
+			value = .4f;
+
+		vulnerability *= (1.0f - value);
+	}
+
 	uint total_resistance = (uint)std::round((1.0 - vulnerability) * 100);
 	return total_resistance;
 }
@@ -1442,18 +1521,24 @@ uint hero_t::get_unit_max_hp(unit_type_e unit_type) const {
 		hp += 50;
 
 	if(is_artifact_in_effect(ARTIFACT_BLOODSTONE_BARRIER))
-		hp += std::round(hp * 1.15);
+		hp += std::round(hp * .15);
 
 	return hp;
 }
 
 uint hero_t::get_unit_min_damage(unit_type_e unit_type) const {
-	uint min_damage = game_config::get_creature(unit_type).min_damage;
+	int min_damage = game_config::get_creature(unit_type).min_damage;
 
 	if(unit_type == UNIT_GOBLIN && specialty == SPECIALTY_GOBLINS)
 		min_damage += 2;
+
+	if(unit_type == UNIT_SKELETON && has_talent(TALENT_UNHOLY_MIGHT))
+		min_damage += 1;
+
+	if(has_talent(TALENT_RECKLESS_FORCE))
+		min_damage -= std::max((int)std::round(.2f * min_damage), 1);
 	
-	return min_damage;
+	return (uint)std::clamp(min_damage, 1, 5000);
 }
 
 uint hero_t::get_unit_max_damage(unit_type_e unit_type) const {
@@ -1462,7 +1547,10 @@ uint hero_t::get_unit_max_damage(unit_type_e unit_type) const {
 	if(unit_type == UNIT_GOBLIN && specialty == SPECIALTY_GOBLINS)
 		max_damage += 2;
 
-	return max_damage;
+	if(has_talent(TALENT_RECKLESS_FORCE))
+		max_damage += std::max((int)std::round(.2f * max_damage), 1);
+
+	return std::clamp(max_damage, 1u, 5000u);
 }
 
 uint hero_t::get_unit_speed(unit_type_e unit_type) const {
@@ -1507,6 +1595,12 @@ uint hero_t::get_unit_initiative(unit_type_e unit_type) const {
 	return initiative;
 }
 
+int hero_t::get_unit_luck(unit_type_e unit_type) const {
+	const auto& creature = game_config::get_creature(unit_type);
+	int luck = get_luck();
+
+	return luck;
+}
 
 int hero_t::get_unit_morale(unit_type_e unit_type) const {
 	const auto& creature = game_config::get_creature(unit_type);
@@ -1592,6 +1686,14 @@ stat_e hero_t::level_up_stats() {
 	return stat;
 }
 
+int get_class_learnrate(const skill_t& skill, hero_class_e hero_class) {
+	auto index = (std::countr_zero((uint16_t)hero_class) - 1);
+	if(index < 0 || index >= skill.class_learnrate.size())
+		return 5;
+
+	return skill.class_learnrate[index];
+}
+
 std::array<skill_e, 3> hero_t::get_level_up_skills() const {
 	std::array<skill_e, 3> skills_to_upgrade = { SKILL_NONE, SKILL_NONE, SKILL_NONE };
 	
@@ -1614,7 +1716,7 @@ std::array<skill_e, 3> hero_t::get_level_up_skills() const {
 	//there is an unusual case here where a hero has no existing skills to upgrade.  if that
 	//is the case, we need to offer 3 new skills
 	uint new_skill_count = 2;
-	if(potential_upgrades.empty())
+	if(filled == 0)
 		new_skill_count = 3;
 	
 	int new_skills = std::min(new_skill_count, get_number_of_open_skill_slots());
@@ -1634,10 +1736,10 @@ std::array<skill_e, 3> hero_t::get_level_up_skills() const {
 			if(already_have_skill)
 				continue;
 			
-			total += sk.class_learnrate[hero_class];
+			total += get_class_learnrate(sk, hero_class);
 		}
 		
-		int randval = rand() % total;
+		int randval = total ? rand() % total : 0;
 		int cumulative = 0;
 		for(auto& sk : game_config::get_skills()) {
 			//disregard already known skills
@@ -1656,7 +1758,7 @@ std::array<skill_e, 3> hero_t::get_level_up_skills() const {
 			if(filled >= skills_to_upgrade.size())
 				break;
 			
-			cumulative += sk.class_learnrate[hero_class];
+			cumulative += get_class_learnrate(sk, hero_class);
 			if(randval < cumulative) {
 				skills_to_upgrade[filled++] = sk.skill_id;
 				break;
@@ -1676,25 +1778,19 @@ std::array<skill_e, 3> hero_t::get_level_up_skills() const {
 	return skills_to_upgrade;
 }
 
-void hero_t::set_visited_object(interactable_object_t* object, bool visited) {
-	uint32_t offset = (object->x << 16) | object->y;
-	bool exists = utils::contains(visited_objects, offset);
-	
+void hero_t::set_visited_object(uint16_t object_id, bool visited) {
+	bool exists = utils::contains(visited_objects, object_id);
 	//if we've visited the object and it's in the visited objects list, or
 	//if we haven't visited the object and it's not in the visited objects list, do nothing
 	if((visited && exists) || (!visited && !exists))
 		return;
 	
 	if(visited && !exists)
-		visited_objects.push_back(offset);
+		visited_objects.push_back(object_id);
 //	else if(!visited && exists)
 //		std::erase(visited_objects, offset); //std::remove(visited_objects.begin(), visited_objects.end(), offset);
 }
 
-bool hero_t::has_object_been_visited(interactable_object_t* object) const {
-	if(!object)
-		return false;
-	
-	uint32_t offset = (object->x << 16) | object->y;
-	return utils::contains(visited_objects, offset);
+bool hero_t::has_object_been_visited(uint16_t object_id) const {
+	return utils::contains(visited_objects, object_id);
 }

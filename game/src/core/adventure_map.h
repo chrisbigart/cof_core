@@ -10,6 +10,7 @@
 #include <vector>
 #include <map>
 #include <deque>
+#include <random>
 
 enum win_condition_e : uint8_t {
 	WIN_CONDITION_DEFEAT_ALL_ENEMIES,
@@ -20,12 +21,26 @@ enum win_condition_e : uint8_t {
 	WIN_CONDITION_ACQUIRE_RESOURCES
 };
 
+union win_condition_specific_u {
+	int hero_id = -1;
+	int town_id;
+	artifact_e artifact_id;
+	resource_value_t resource_amount;
+};
+
 enum loss_condition_e : uint8_t {
 	LOSS_CONDITION_LOSE_ALL_TOWNS_HEROES,
 	LOSS_CONDITION_LOSE_HERO,
 	LOSS_CONDITION_LOSE_TOWN,
 	LOSS_CONDITION_LOSE_ARTIFACT,
 	LOSS_CONDITION_TIME_EXPIRES
+};
+
+union loss_condition_specific_u {
+	int hero_id = -1;
+	int town_id;
+	artifact_e artifact_id;
+	int time_limit_days;
 };
 
 enum adventure_map_direction_e : uint8_t {
@@ -170,17 +185,18 @@ public:
     bool tile_valid(int x, int y) const;
 
     //int read_map_from_file(const std::string& filename);
-    int initialize_map(const game_configuration_t& game_config, int seed = 0);
+    int initialize_map(int seed = 0);
     void clear(bool delete_objects = true, bool clear_tiles = true);
 
+	static artifact_e get_random_artifact_of_rarity(artifact_rarity_e rarity, std::mt19937_64& rng);
 	static artifact_e get_random_artifact_of_rarity(artifact_rarity_e rarity);
     //const map_tile_t& get_tile(int x, int y) const;
 	map_tile_t& get_tile(int x, int y);
 	const map_tile_t& get_tile(int x, int y) const;
-	map_tile_t& get_tile_for_interactable_object(interactable_object_t* object);
 	interactable_object_t* get_interactable_object_for_tile(int x, int y) const;
 	bool remove_interactable_object(interactable_object_t* object);
 	bool remove_hero(hero_t* hero);
+	bool is_tile_monster_guarded(int x, int y) const;
 	map_monster_t* get_monster_guarding_tile(int x, int y) const;
 	bool is_tile_guarded_by_monster(int x, int y) const;
 	mutable QBitArray monster_guarded_cache;
@@ -207,12 +223,10 @@ public:
 	bool are_tiles_diagonal(int x1, int y1, int x2, int y2) const;
 	
 	//todo probably move/refactor this
-	coord_t get_interactable_offset_for_object(const interactable_object_t* object) const;
-	coord_t get_interactable_coordinate_for_object(const interactable_object_t* object) const;
 	interactable_object_t* get_object_by_id(uint16_t object_id, interactable_object_e match_type = OBJECT_UNKNOWN);
 	uint16_t get_object_id(interactable_object_t* object) const;
-	bool is_offset_passable(const interactable_object_t* object, int x, int y);
-	bool is_offset_passable(const doodad_t* doodad, int x, int y);
+	bool was_object_visited_by_player(interactable_object_t* object, player_e player);
+	void set_object_visited_by_player(interactable_object_t* object, player_e player);
 	bool is_offset_interactable(const interactable_object_t* object, int x, int y);
 	const hero_t* get_hero_at_tile(int x, int y) const;
 	hero_t* get_hero_at_tile(int x, int y);
@@ -222,8 +236,8 @@ public:
 	//actions from player.  probably needs to be moved to client_t
 	bool can_hero_move_to_tile(hero_t* hero, int x, int y, game_t* game);
 	map_action_e move_hero_to_tile(hero_t& hero, int x, int y, game_t& game);
-	map_action_e interact_with_object(hero_t* hero, interactable_object_t* object, game_t& game);
-	bool zero_hero_movement_points_if_low(hero_t* hero, game_t& game);
+	//map_action_e interact_with_object(hero_t* hero, interactable_object_t* object, game_t& game);
+	bool zero_hero_movement_points_if_low(hero_t* hero);
 	//troop management
 	int get_next_open_troop_slot(const troop_group_t& troops);
 	int get_number_of_open_slots(const troop_group_t& troops);
@@ -233,6 +247,7 @@ public:
 	bool merge_troops(troop_group_t& troops, uint slot);
 	void clear_troop_slots(troop_group_t& troops);
 	bool dismiss_troops(hero_t* hero, int troop_index);
+	bool dismiss_troops(town_t* town, int troop_index);
 	bool move_troop_stack_from_hero_to_hero(hero_t* hero_from, hero_t* hero_to, uint stack, bool move_only_one_troop = false);
 	bool move_troops_between_heroes(hero_t* source_hero, uint source_slot, hero_t* dest_hero, uint dest_slot);
 	bool sort_hero_backpack(hero_t* hero);
@@ -274,11 +289,11 @@ public:
     uint8_t players;
     uint8_t difficulty;
 	win_condition_e win_condition;
+	win_condition_specific_u win_condition_specific;
     loss_condition_e loss_condition;
+	loss_condition_specific_u loss_condition_specific;
 	
-    //probably want to change this
-	static std::map<int, std::bitset<64>> interactivity_map;
-	std::map<int, std::bitset<64>> passability_map;
+	std::map<interactable_object_t*, uint8_t> player_object_visited_map;
 
     std::vector<map_tile_t> tiles;
 

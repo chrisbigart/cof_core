@@ -5,8 +5,6 @@
 #include <functional>
 #include <vector>
 
-namespace rl {
-namespace combat {
 
 struct battle_sim_options_t {
         bool single_step = true;
@@ -43,7 +41,4 @@ private:
 
 /// Convenience helper to mark every player as AI-controlled except the ones provided in `human_players`.
 void assign_human_players(game_t& game_instance, const std::vector<player_e>& human_players);
-
-} // namespace combat
-} // namespace rl
 

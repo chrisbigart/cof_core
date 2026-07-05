@@ -1,4 +1,4 @@
-#include "rl/combat_observation.h"
+#include "combat_observation.h"
 
 #include "core/battlefield.h"
 #include "core/game_config.h"
@@ -6,10 +6,6 @@
 #include <algorithm>
 #include <limits>
 #include <vector>
-
-namespace rl {
-namespace combat {
-namespace {
 
 stack_observation_t encode_stack(const battlefield_unit_t& unit) {
         stack_observation_t output;
@@ -50,11 +46,9 @@ void append_stack_features(std::vector<float>& buffer, const stack_observation_t
         buffer.push_back(stack.is_disabled ? 1.0F : 0.0F);
 }
 
-} // namespace
-
 combat_observation_t capture_observation(const combat_session_t& session) {
         combat_observation_t output;
-        const auto& battlefield = session.battlefield();
+        battlefield_t& battlefield = (battlefield_t&)(session.simulator.battlefield());
 
         output.round = static_cast<uint16_t>(std::min(
                 battlefield.round,
@@ -63,7 +57,7 @@ combat_observation_t capture_observation(const combat_session_t& session) {
         output.is_siege = battlefield.is_siege();
         output.is_quick_combat = battlefield.is_quick_combat;
 
-        if(const auto* active_unit = battlefield.get_active_unit()) {
+        if(auto* active_unit = battlefield.get_active_unit()) {
                 output.active_unit_id = active_unit->troop_id;
                 output.active_unit_is_attacker = active_unit->is_attacker;
                 output.active_unit_x = active_unit->x;
@@ -75,8 +69,8 @@ combat_observation_t capture_observation(const combat_session_t& session) {
                 output.active_unit_y = -1;
         }
 
-        const auto& attacker = session.attacker();
-        const auto& defender = session.defender();
+        const auto& attacker = session.attacker_hero;
+        const auto& defender = session.defender_hero;
         output.attacker_mana = attacker.mana;
         output.defender_mana = defender.mana;
         output.attacker_morale = static_cast<int16_t>(attacker.get_morale());
@@ -149,7 +143,4 @@ torch::Tensor observation_to_tensor(const combat_observation_t& observation, tor
 
         return torch::tensor(features, torch::TensorOptions().dtype(torch::kFloat32).device(device));
 }
-
-} // namespace combat
-} // namespace rl
 

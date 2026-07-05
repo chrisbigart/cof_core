@@ -1,13 +1,16 @@
 #pragma once
 
+#include <array>
+
 enum resource_e : uint8_t;
+class QDataStream;
 
 struct resource_value_t {
 	resource_e type = RESOURCE_RANDOM;
 	uint32_t value = 0;
 };
 
-static constexpr int MAX_RESOURCE_VALUE = 2000000000;
+static constexpr uint32_t MAX_RESOURCE_VALUE = 2000000000;
 static constexpr int NUMBER_OF_RESOURCES = 7;
 
 QDataStream& operator<<(QDataStream& stream, const resource_value_t& resource);
@@ -50,13 +53,12 @@ struct resource_group_t {
 	
 	void add_value(resource_e type, uint32_t amount) {
 		auto val = get_value_for_type(type);
-		if((val + amount < val) || (val + amount >= MAX_RESOURCE_VALUE))
+		if(amount >= MAX_RESOURCE_VALUE - val)
 			val = MAX_RESOURCE_VALUE;
 		else
 			val += amount;
 		
 		set_value_for_type(type, val);
-		//return val;
 	}
 	
 	void sub_value(resource_e type, uint32_t amount) {
@@ -67,7 +69,6 @@ struct resource_group_t {
 			val -= amount;
 		
 		set_value_for_type(type, val);
-		//return val;
 	}
 	
 	bool covers_cost(const resource_group_t& cost) const {
@@ -81,17 +82,23 @@ struct resource_group_t {
 	
 	resource_group_t& operator+=(const resource_group_t& rhs) {
 		for(int i = 0; i < NUMBER_OF_RESOURCES; i++) {
-			values[i].value += rhs.values[i].value;
-			values[i].value = std::max(values[i].value, 0u); //
+			if(rhs.values[i].value >= MAX_RESOURCE_VALUE - values[i].value)
+				values[i].value = MAX_RESOURCE_VALUE;
+			else
+				values[i].value = std::min(values[i].value + rhs.values[i].value, MAX_RESOURCE_VALUE);
 		}
+
 		return *this;
 	}
 	
 	resource_group_t& operator-=(const resource_group_t& rhs) {
 		for(int i = 0; i < NUMBER_OF_RESOURCES; i++) {
-			values[i].value -= rhs.values[i].value;
-			values[i].value = std::max(values[i].value, 0u);
+			if(rhs.values[i].value >= values[i].value)
+				values[i].value = 0u;
+			else
+				values[i].value -= rhs.values[i].value;
 		}
+
 		return *this;
 	}
 	
@@ -116,7 +123,8 @@ struct resource_group_t {
 	template<typename T> resource_group_t operator*(const T& multi) const {
 		resource_group_t res;
 		for(int i = 0; i < NUMBER_OF_RESOURCES; i++) {
-			res.values[i].value = values[i].value * multi;
+			const uint64_t product = (uint64_t)(values[i].value) * (uint64_t)(multi);
+			res.values[i].value = (uint32_t)(std::min(product, (uint64_t)(MAX_RESOURCE_VALUE)));
 		}
 		return res;
 	}
@@ -124,3 +132,4 @@ struct resource_group_t {
 
 QDataStream& operator<<(QDataStream& stream, const resource_group_t& resource);
 QDataStream& operator>>(QDataStream& stream, resource_group_t& resource);
+resource_group_t operator+(const resource_group_t& a, const resource_group_t& b);

@@ -2,6 +2,7 @@
 #include "core/hero.h"
 #include "core/game.h"
 #include "core/interactable_object.h"
+#include "core/utils.h"
 
 #include <deque>
 #include <algorithm>
@@ -85,6 +86,7 @@ QDataStream& operator<<(QDataStream& stream, const battlefield_unit_t& unit) {
 	stream << unit.has_moved;
 	stream << unit.has_moraled;
 	stream << unit.has_cast_spell;
+	stream << unit.spell_casts_remaining;
 	stream << unit.has_defended;
 	stream << unit.retaliations_remaining;
 	stream << unit.is_attacker;
@@ -106,6 +108,7 @@ QDataStream& operator>>(QDataStream& stream, battlefield_unit_t& unit) {
 	stream >> unit.has_moved;
 	stream >> unit.has_moraled;
 	stream >> unit.has_cast_spell;
+	stream >> unit.spell_casts_remaining;
 	stream >> unit.has_defended;
 	stream >> unit.retaliations_remaining;
 	stream >> unit.is_attacker;
@@ -338,8 +341,10 @@ const std::string stringify_combat_action(const battle_action_t& action, const s
 			
 			//QString defender_name = action.affected_units.size() ? (tr(action.affected_units.front().target_unit.get_unit_name(), count)) : "Unknown";
 			QString defender_name;
-			if(action.affected_units.size())
-				defender_name = tr(action.affected_units.front().target_unit.get_unit_name().c_str(), count);
+			if(action.affected_units.size()) {
+				auto defender_count = action.affected_units.front().target_unit.stack_size + action.affected_units.front().kills;
+				defender_name = tr(action.affected_units.front().target_unit.get_unit_name(defender_count > 1).c_str(), defender_count);
+			}
 
 			if(kills > 0) {
 				message = tr("The %1 %2 the %3 for %4 damage, killing %5.", count)
@@ -372,8 +377,10 @@ const std::string stringify_combat_action(const battle_action_t& action, const s
 			const auto& spell = game_config::get_spell(action.spell_id);
 
 			QString target_name;
-			if(action.affected_units.size() == 1)
-				target_name = QObject::tr(action.affected_units[0].target_unit.get_unit_name().c_str());
+			if(action.affected_units.size() == 1) {
+				auto defender_count = action.affected_units[0].target_unit.stack_size + action.affected_units[0].kills;
+				target_name = QObject::tr(action.affected_units[0].target_unit.get_unit_name(defender_count > 1).c_str());
+			}
 
 			auto spell_name = QObject::tr(spell.name.c_str());
 			QString caster_name;
@@ -385,7 +392,7 @@ const std::string stringify_combat_action(const battle_action_t& action, const s
 				if(action.action == ACTION_UNIT_SPELLCAST)
 					caster_name = QString("The %1").arg(unit_name);
 				else if(action.action == ACTION_ATTACKER_SPELLCAST || action.action == ACTION_DEFENDER_SPELLCAST)
-					caster_name = QObject::tr(action.applicable_hero->name.c_str());
+					caster_name = QObject::tr(action.applicable_hero ? action.applicable_hero->name.c_str() : "_Uknown Hero_");
 			}
 
 			if(damage > 0) {
@@ -447,12 +454,21 @@ const std::string stringify_combat_action(const battle_action_t& action, const s
 
 			break;
 		}
+
+		case ACTION_UNIT_REINCARNATED: {
+			message = tr("%1 %2 %3 from the ashes.", count)
+				.arg(count)
+				.arg(unit_name)
+				.arg(tr("rises", count));
+
+			break;
+		}
 	}
 
 	return message.toStdString();
 }
 
-std::set<battlefield_hex_t*> battlefield_hex_grid_t::get_movement_range_flyer(const battlefield_unit_t& unit, sint radius) {
+std::set<battlefield_hex_t*> battlefield_hex_grid_t::get_movement_range_flyer(const battlefield_unit_t& unit, int radius) {
 	std::set<battlefield_hex_t*> movement_hexes;
 		
 	bool two_hex = unit.is_two_hex();
@@ -488,7 +504,7 @@ std::set<battlefield_hex_t*> battlefield_hex_grid_t::get_movement_range_flyer(co
 	return movement_hexes;
 }
 
-std::set<battlefield_hex_t*> battlefield_hex_grid_t::get_movement_range(const battlefield_unit_t& unit, sint radius, bool flyer) {
+std::set<battlefield_hex_t*> battlefield_hex_grid_t::get_movement_range(const battlefield_unit_t& unit, int radius, bool flyer) {
 	std::set<battlefield_hex_t*> movement_hexes;
 		
 	if(flyer)
@@ -557,7 +573,7 @@ std::set<battlefield_hex_t*> battlefield_hex_grid_t::get_movement_range(const ba
 	return movement_hexes;
 }
 
-std::set<battlefield_hex_t*> battlefield_t::get_movement_range(battlefield_unit_t& unit, sint radius, bool flyer) {
+std::set<battlefield_hex_t*> battlefield_t::get_movement_range(battlefield_unit_t& unit, int radius, bool flyer) {
 	std::set<battlefield_hex_t*> movement_hexes;
 		
 	if(unit.is_turret() || unit.unit_type == UNIT_CATAPULT || unit.unit_type == UNIT_BALLISTA)
@@ -812,6 +828,9 @@ uint32_t battlefield_t::apply_damage_adjustments(uint32_t base_damage, battlefie
 	
 	if(is_ranged_attack) {
 		damage = apply_ranged_attack_penalty(damage, attacker, defender);
+		if(army_of_defender.hero && army_of_defender.hero->is_artifact_in_effect(ARTIFACT_GOLDEN_AEGIS))
+			damage *= .8f;
+
 		if(defender.has_buff(BUFF_REDUCED_DAMAGE_FROM_RANGED))
 			damage *= 1.0f -(.01f * defender.get_buff(BUFF_REDUCED_DAMAGE_FROM_RANGED).magnitude);
 
@@ -911,7 +930,7 @@ uint battlefield_t::get_unit_adjusted_hp(const battlefield_unit_t& unit) {
 	auto hp = army_of_unit.hero ? army_of_unit.hero->get_unit_max_hp(unit.unit_type) : unit.get_base_max_hitpoints();
 
 	if(unit.has_buff(BUFF_SUMMONED) && army_of_unit.is_affected_by_talent(TALENT_SUMMONER))
-		hp *= (1.4f * hp);
+		hp *= 1.4f;
 
 	if(unit.has_buff(BUFF_INCREASED_HEALTH))
 		hp *= (1.0f + ((float)unit.get_buff(BUFF_INCREASED_HEALTH).magnitude / 100.f));
@@ -934,14 +953,6 @@ std::pair<uint, uint> battlefield_t::get_unit_adjusted_damage_range(battlefield_
 		max_damage = (max_damage * multi);
 	}
 	
-	if(unit.unit_type == UNIT_SKELETON && army_of_unit.is_affected_by_talent(TALENT_UNHOLY_MIGHT))
-		min_damage++;
-	
-	if(army_of_unit.is_affected_by_talent(TALENT_RECKLESS_FORCE)) {
-		min_damage = std::round(.8f * min_damage);
-		max_damage = std::round(1.2f * max_damage);
-	}
-
 	if(unit.has_buff(BUFF_CURSED))
 		max_damage = min_damage;
 	
@@ -960,7 +971,7 @@ std::pair<uint, uint> battlefield_t::get_unit_adjusted_damage_range(battlefield_
 int battlefield_t::get_unit_adjusted_luck(battlefield_unit_t& unit) {
 	auto& army_of_unit = unit.is_attacker ? attacking_army : defending_army;
 	auto& army_of_enemy = unit.is_attacker ? defending_army : attacking_army;
-	auto luck = army_of_unit.get_luck_value();
+	auto luck = army_of_unit.hero ? army_of_unit.hero->get_unit_luck(unit.unit_type) : army_of_unit.get_luck_value();
 	
 	if(unit.has_buff(BUFF_INCREASED_LUCK))
 		luck += unit.get_buff(BUFF_INCREASED_LUCK).magnitude;
@@ -984,7 +995,7 @@ int battlefield_t::get_unit_adjusted_luck(battlefield_unit_t& unit) {
 int battlefield_t::get_unit_adjusted_morale(const battlefield_unit_t& unit) const {
 	auto& army_of_unit = unit.is_attacker ? attacking_army : defending_army;
 	auto& army_of_enemy = unit.is_attacker ? defending_army : attacking_army;
-	auto morale = army_of_unit.get_morale_value();
+	auto morale = army_of_unit.hero ? army_of_unit.hero->get_unit_morale(unit.unit_type) : army_of_unit.get_morale_value();
 	
 	if(unit.has_buff(BUFF_UNDEAD) || army_of_unit.is_affected_by_talent(TALENT_MINDLESS_SUBSERVIENCE))
 		return 0;
@@ -1100,7 +1111,7 @@ int battlefield_t::get_unit_adjusted_initiative(battlefield_unit_t& unit) {
 	if(army_of_unit.hero && environment_type == BATTLEFIELD_ENVIRONMENT_GRASS && army_of_unit.hero->has_talent(TALENT_GRASSLANDS_GRACE)) {
 		//only applies to enchantress troops
 		const auto& cr = game_config::get_creature(unit.unit_type);
-		if(cr.faction == HERO_SORCERESS)
+		if(cr.faction == HERO_CLASS_SORCERESS)
 			initiative += 1;
 	}
 
@@ -1285,11 +1296,11 @@ int battlefield_t::get_hero_adjusted_power(hero_t* hero) {
 		return power;
 
 	auto opposing_hero = (hero == attacking_hero) ? defending_hero : attacking_hero;
-	if(hero->has_talent(TALENT_POWER_SIPHON) && opposing_hero && opposing_hero->hero_class != HERO_BARBARIAN) {
+	if(hero->has_talent(TALENT_POWER_SIPHON) && opposing_hero && opposing_hero->hero_class != HERO_CLASS_BARBARIAN) {
 		int siphoned_power = std::max(1, (int)std::round(opposing_hero->get_effective_power() * .1f)); //10%, with a minimum of 1
 		power += siphoned_power;
 	}
-	else if(opposing_hero && opposing_hero->has_talent(TALENT_POWER_SIPHON) && hero->hero_class != HERO_BARBARIAN) {
+	else if(opposing_hero && opposing_hero->has_talent(TALENT_POWER_SIPHON) && hero->hero_class != HERO_CLASS_BARBARIAN) {
 		int siphoned_power = std::max(1, (int)std::round(opposing_hero->get_effective_power() * .1f)); //10%, with a minimum of 1
 		power = std::max(1, power - siphoned_power); //cannot reduce power below 1
 	}
@@ -1297,7 +1308,7 @@ int battlefield_t::get_hero_adjusted_power(hero_t* hero) {
 	return power;
 }
 
-bool battlefield_t::restore_hero_mana(hero_t* hero, int mana_to_restore, talent_e talent) {
+bool battlefield_t::restore_hero_mana(hero_t* hero, int mana_to_restore, talent_e talent, artifact_e artifact) {
 	if(!hero)
 		return false;
 
@@ -1314,7 +1325,11 @@ bool battlefield_t::restore_hero_mana(hero_t* hero, int mana_to_restore, talent_
 		battle_action_t action;
 		action.action = ACTION_MANA_RESTORED;
 		action.applicable_hero = hero;
-		action.applicable_talent = talent;
+		if(talent != TALENT_NONE)
+			action.applicable_talent = talent;
+		if(artifact != ARTIFACT_NONE)
+			action.applicable_artifact = artifact;
+
 		action.effect_value = mana_restored;
 		fn_emit_combat_action(action);
 	}
@@ -1404,17 +1419,77 @@ std::vector<battlefield_unit_t*> battlefield_t::cast_spell_on_random_troops(army
 	return targets;
 }
 
+spell_result_e battlefield_t::cast_spell(battlefield_unit_t* caster, spell_e spell_id, int target_x, int target_y, battlefield_unit_t* target_unit) {
+	if(!caster || !caster->has_buff(BUFF_SPELLCASTER) || caster->spell_casts_remaining == 0 || caster->has_cast_spell)
+		return SPELL_RESULT_ERROR;
+
+	auto& friendly_army = caster->is_attacker ? attacking_army : defending_army;
+
+	if(spell_id == SPELL_UNKNOWN) {
+		static const std::array<spell_e, 5> genie_spells = {
+				SPELL_HASTE,
+				SPELL_STONESKIN,
+				SPELL_AIR_SHIELD,
+				SPELL_FORTITUDE,
+				SPELL_BLESS
+		};
+		spell_id = genie_spells[std::rand() % genie_spells.size()];
+	}
+
+	if(!target_unit) {
+		std::vector<battlefield_unit_t*> targets;
+		for(auto& t : friendly_army.troops) {
+			if(t.is_empty())
+				continue;
+			if(is_spell_target_valid(friendly_army.hero, &t, spell_id))
+				targets.push_back(&t);
+		}
+
+		if(!targets.size())
+			return SPELL_RESULT_INVALID_TARGET;
+
+		target_unit = targets[std::rand() % targets.size()];
+		target_x = target_unit->x;
+		target_y = target_unit->y;
+	}
+	else if(!is_spell_target_valid(friendly_army.hero, target_unit, spell_id)) {
+		return SPELL_RESULT_INVALID_TARGET;
+	}
+
+	const auto& spell = game_config::get_spell(spell_id);
+	auto buff = get_buff_for_spell(spell_id);
+	int power = friendly_army.hero ? get_hero_adjusted_power(friendly_army.hero) : 0;
+	int magnitude = spell.multiplier[0].get_value(power, friendly_army.hero ? friendly_army.hero->get_spell_effect_multiplier(spell_id) : 1.f);
+	int duration = spell.multiplier[1].get_value(power, friendly_army.hero ? friendly_army.hero->get_spell_effect_multiplier(spell_id) : 1.f);
+
+	target_unit->add_buff(buff, duration, magnitude);
+	caster->spell_casts_remaining--;
+	caster->has_cast_spell = true;
+
+	if(!is_quick_combat) {
+		battle_action_t action;
+		action.action = ACTION_UNIT_SPELLCAST;
+		action.acting_unit = *caster;
+		action.spell_id = spell_id;
+		action.buff_id = buff;
+		action.affected_units.push_back({ *target_unit, 0, 0, false });
+		fn_emit_combat_action(action);
+	}
+
+	return SPELL_RESULT_OK;
+}
+
 spell_result_e battlefield_t::cast_spell(hero_t* caster, spell_e spell_id, int target_x, int target_y, battlefield_unit_t* target_unit) {
 	//if(not current hero's turn)
-        if(!caster || !caster->knows_spell(spell_id))
-                return SPELL_RESULT_ERROR;
+	if(!caster || !caster->knows_spell(spell_id))
+		return SPELL_RESULT_ERROR;
 	
 	const auto& spell = game_config::get_spell(spell_id);
 	
 	uint16_t mana_cost = caster->get_spell_cost(spell_id);
 	
-        if(caster->mana < mana_cost)
-                return SPELL_RESULT_INSUFFICIENT_MANA;
+	if(caster->mana < mana_cost)
+		return SPELL_RESULT_INSUFFICIENT_MANA;
 	
 	//verify valid targets
 	//if(spell.target == TARGET_ALL_ALLIED || spell.target == TARGET_ALL_ENEMY || spell.target == TARGET_ALL_UNITS || spell.target == TARGET_SUMMON)
@@ -1426,8 +1501,8 @@ spell_result_e battlefield_t::cast_spell(hero_t* caster, spell_e spell_id, int t
 	if(!target && (spell_id == SPELL_RESURRECTION || spell_id == SPELL_REANIMATE_DEAD || spell_id == SPELL_ARCANE_REANIMATION))
 		target = get_dead_unit_on_hex(target_x, target_y);
 
-        if(target && !is_spell_target_valid(caster, target, spell_id))
-                return SPELL_RESULT_INVALID_TARGET;
+	if(target && !is_spell_target_valid(caster, target, spell_id))
+		return SPELL_RESULT_INVALID_TARGET;
 //	if(caster == attacking_hero && attacking_hero_used_cast)
 //		return 3;
 //	else if(caster == defending_hero && defending_hero_used_cast)
@@ -1435,9 +1510,9 @@ spell_result_e battlefield_t::cast_spell(hero_t* caster, spell_e spell_id, int t
 	
 	auto& caster_troops = (caster == attacking_hero ? attacking_army.troops : defending_army.troops);
 	auto& enemy_troops = (caster == attacking_hero ? defending_army.troops : attacking_army.troops);
-	
-        uint32_t damage = 0;
-        uint32_t total_damage = 0;
+		
+	uint32_t damage = 0;
+	uint32_t total_damage = 0;
 	uint16_t total_kills = 0;
 	
 	battle_action_t action;
@@ -1445,36 +1520,44 @@ spell_result_e battlefield_t::cast_spell(hero_t* caster, spell_e spell_id, int t
 	action.spell_id = spell_id;
 	action.target_hex = make_hex_location(target_x, target_y);
 	action.applicable_hero = caster;
+
+	battle_action_t secondary_action;
+	secondary_action.action = (caster == attacking_hero ? ACTION_ATTACKER_SPELLCAST : ACTION_DEFENDER_SPELLCAST);
+	secondary_action.spell_id = spell_id;
+	secondary_action.target_hex = make_hex_location(target_x, target_y);
+	secondary_action.applicable_hero = caster;
 	//action.affected_units.push_back target;
 	
 	switch(spell_id) {
 		//MARK: nukes
-                case SPELL_IMPLOSION:
-                case SPELL_ARCANE_BOLT:
-                case SPELL_SHADOW_BOLT:
-                case SPELL_LIGHTNING_BOLT:
-                case SPELL_FIRE_BALL:
-                case SPELL_LUNAR_ARROW:
-                case SPELL_FIRE_BLAST:
-                case SPELL_FROST_RAY:
-                case SPELL_ELECTROCUTE:
-                case SPELL_REAPERS_SCYTHE:
-                case SPELL_ICE_LANCE: {
-                        if(!target)
-                                return SPELL_RESULT_INVALID_TARGET;
+		case SPELL_IMPLOSION:
+		case SPELL_ARCANE_BOLT:
+		case SPELL_SHADOW_BOLT:
+		case SPELL_LIGHTNING_BOLT:
+		case SPELL_FIRE_BALL:
+		case SPELL_LUNAR_ARROW:
+		case SPELL_FIRE_BLAST:
+		case SPELL_FROST_RAY:
+		case SPELL_ELECTROCUTE:
+		case SPELL_REAPERS_SCYTHE:
+		case SPELL_ICE_LANCE: {
+			if(!target)
+				return SPELL_RESULT_INVALID_TARGET;
 
 			damage = spell.multiplier[0].get_value(get_hero_adjusted_power(caster), caster->get_spell_effect_multiplier(spell_id));
 			damage = calculate_magic_damage_to_stack(damage, *target, spell.damage_type);
-			total_kills = deal_magic_damage_to_stack(damage, *target);
+			total_damage = damage;
+			auto kills = deal_magic_damage_to_stack(damage, *target);
 
-			if(spell_id == SPELL_REAPERS_SCYTHE && total_kills > 0 && target->stack_size > 0) {
-				int additional_units_to_kill = spell.multiplier[1].get_value(0, caster->get_spell_effect_multiplier(spell_id));
-				deal_damage_to_stack(target->unit_health, *target);
+			if(spell_id == SPELL_REAPERS_SCYTHE && kills > 0 && target->stack_size > 0) {
+				uint16_t additional_units_to_kill = spell.multiplier[1].get_value(0, caster->get_spell_effect_multiplier(spell_id));
+				uint32_t additional_damage = get_unit_adjusted_hp(*target) * additional_units_to_kill;
+				total_kills += deal_damage_to_stack(additional_damage, *target);
+				total_damage += additional_damage;
 				total_kills++;
-				additional_units_to_kill--;
-				if(additional_units_to_kill > 0) {
-					total_kills += deal_damage_to_stack(get_unit_adjusted_hp(*target) * additional_units_to_kill, *target);
-				}
+				
+				secondary_action.affected_units.push_back({ *target, additional_damage, additional_units_to_kill, (target->stack_size == 0) });
+				secondary_action.effect_value = additional_units_to_kill;
 			}
 
 			auto buff = get_buff_for_spell(spell_id);
@@ -1489,7 +1572,33 @@ spell_result_e battlefield_t::cast_spell(hero_t* caster, spell_e spell_id, int t
 				action.buff_id = buff;
 			}
 
-			action.affected_units.push_back({*target, damage, total_kills, (target->stack_size == 0)});
+			//for achievement "Quenching the Flame"
+			if(spell.damage_type == MAGIC_DAMAGE_FROST && target->has_buff(BUFF_FIRE_IMMUNITY) && target->stack_size == 0) {
+				total_stats.frost_kill_fire_immune++;
+				auto& stats = caster == attacking_hero ? attacker_stats : defender_stats;
+				stats.frost_kill_fire_immune++;
+			}
+
+			//for achievement "Grave Mistake"
+			if(spell_id == SPELL_IMPLOSION && target->stack_size == 0) {
+				hero_t* enemy = (caster == attacking_hero ? defending_hero : attacking_hero);
+				if(enemy && enemy->hero_class == HERO_CLASS_NECROMANCER) {
+					bool units_left = false;
+					for(auto& u : enemy_troops) {
+						if(!u.is_empty() && u.stack_size > 0) {
+							units_left = true;
+							break;
+						}
+					}
+					if(!units_left) {
+						total_stats.implosion_finish_necromancer++;
+						auto& stats = caster == attacking_hero ? attacker_stats : defender_stats;
+						stats.implosion_finish_necromancer++;
+					}
+				}
+			}
+
+			action.affected_units.push_back({*target, damage, kills, (target->stack_size == 0)});
 		}
 		break;
 			
@@ -1514,13 +1623,55 @@ spell_result_e battlefield_t::cast_spell(hero_t* caster, spell_e spell_id, int t
 				hit_units.push_back(hit_unit);
 				total_kills += kills;
 				total_damage += damage;
+
+				bool friendly = (hit_unit->is_attacker == (caster == attacking_hero));
+				
+				if(friendly && damage > 0) {
+					total_stats.friendly_fire_spell_hits++;
+					total_stats.friendly_fire_spell_damage += damage;
+					auto& stats = (caster == attacking_hero ? attacker_stats : defender_stats);
+					stats.friendly_fire_spell_hits++;
+					stats.friendly_fire_spell_damage += damage;
+				}
 			}
+
+			//for achievement "Meteoric Rise"
+			if(spell_id == SPELL_METEOR_SHOWER && total_kills >= 75) {
+				total_stats.meteor_shower_75kills++;
+				auto& stats = caster == attacking_hero ? attacker_stats : defender_stats;
+				stats.meteor_shower_75kills++;
+			}
+
 		}
 		break;
 
 		case SPELL_DECAY:
-		case SPELL_DEATH_COIL:
-		break;
+		case SPELL_DEATH_COIL: {
+			if(!target)
+				return SPELL_RESULT_INVALID_TARGET;
+
+			damage = spell.multiplier[0].get_value(get_hero_adjusted_power(caster), caster->get_spell_effect_multiplier(spell_id));
+			damage = calculate_magic_damage_to_stack(damage, *target, spell.damage_type);
+			int healing = damage * ((spell.multiplier[1].get_value(get_hero_adjusted_power(caster), caster->get_spell_effect_multiplier(spell_id))) / 100.f);
+			total_damage = damage;
+			total_kills = deal_magic_damage_to_stack(damage, *target);
+
+			auto adjacent_hexes = hex_grid.get_neighbors(target->x, target->y);
+			if(target->is_two_hex()) {
+
+			}
+
+			int total_healing = 0;
+			for(const auto& h : adjacent_hexes) {
+				if(!h->unit || !h->unit->has_buff(BUFF_UNDEAD))
+					continue;
+
+				total_healing += apply_healing_to_stack(healing, *h->unit, true).first;
+			}
+
+			action.affected_units.push_back({ *target, damage, total_kills, (target->stack_size == 0) });
+			break;
+		}
 
 		case SPELL_HOLY_SHOUT: {
 			auto apply_damage = [this, &caster, spell_id, &damage, &action, &spell, &total_kills, &total_damage](battlefield_unit_t& unit) {
@@ -1550,14 +1701,36 @@ spell_result_e battlefield_t::cast_spell(hero_t* caster, spell_e spell_id, int t
 
 			auto initial_damage = spell.multiplier[0].get_value(get_hero_adjusted_power(caster), caster->get_spell_effect_multiplier(spell_id));
 			auto jump_damage = initial_damage;
+			int stacks_killed = 0;
 			for(auto current_target : targets) {
 				damage = calculate_magic_damage_to_stack(jump_damage, *current_target, spell.damage_type);
 				auto kills = deal_magic_damage_to_stack(damage, *current_target);
 				action.affected_units.push_back({ *current_target, damage, kills, (current_target->stack_size == 0) });
 				total_kills += kills;
 				total_damage += damage;
+				if(current_target->stack_size == 0)
+					stacks_killed++;
+				
 				jump_damage = std::max(1, (int)std::round((float)jump_damage * (caster->has_talent(TALENT_HIGH_VOLTAGE) ? .65f : .5f)));
+
+				bool friendly = (current_target->is_attacker == (caster == attacking_hero));
+				
+				if(friendly && damage > 0) {
+					total_stats.friendly_fire_spell_hits++;
+					total_stats.friendly_fire_spell_damage += damage;
+					auto& stats = (caster == attacking_hero ? attacker_stats : defender_stats);
+					stats.friendly_fire_spell_hits++;
+					stats.friendly_fire_spell_damage += damage;
+				}
 			}
+
+			//for achievement "Conductive Critters"
+			if(stacks_killed >= 5) {
+				total_stats.chain_lightning_5kills++;
+				auto& stats = caster == attacking_hero ? attacker_stats : defender_stats;
+				stats.chain_lightning_5kills++;
+			}
+
 		}
 		break;
 
@@ -1619,31 +1792,48 @@ spell_result_e battlefield_t::cast_spell(hero_t* caster, spell_e spell_id, int t
 		case SPELL_ARMAGEDDON:
 			for(auto& unit : caster_troops) {
 				if(unit.is_empty() || !is_spell_target_valid(caster, &unit, spell_id))
-					continue;				
+					continue;
 
 				damage = spell.multiplier[0].get_value(get_hero_adjusted_power(caster), caster->get_spell_effect_multiplier(spell_id));
 				damage = calculate_magic_damage_to_stack(damage, unit, spell.damage_type);
 				auto kills = deal_magic_damage_to_stack(damage, unit);
 				action.affected_units.push_back({ unit, damage, kills, (unit.stack_size == 0) });
 				total_kills += kills;
+				total_damage += damage;
+
+				if(damage > 0) {
+					total_stats.friendly_fire_spell_hits++;
+					total_stats.friendly_fire_spell_damage += damage;
+					auto& stats = (caster == attacking_hero ? attacker_stats : defender_stats);
+					stats.friendly_fire_spell_hits++;
+					stats.friendly_fire_spell_damage += damage;
+				}
 			}
 			for(auto& unit : enemy_troops) {
 				if(unit.is_empty() || !is_spell_target_valid(caster, &unit, spell_id))
-					continue;				
+					continue;
 
 				damage = spell.multiplier[0].get_value(get_hero_adjusted_power(caster), caster->get_spell_effect_multiplier(spell_id));
 				damage = calculate_magic_damage_to_stack(damage, unit, spell.damage_type);
 				auto kills = deal_magic_damage_to_stack(damage, unit);
 				action.affected_units.push_back({ unit, damage, kills, (unit.stack_size == 0) });
 				total_kills += kills;
+				total_damage += damage;
+			}
+
+			//for achievement "Watch the World Burn"
+			if(total_damage >= 5000) {
+				total_stats.armageddon_5000_damage++;
+				auto& stats = caster == attacking_hero ? attacker_stats : defender_stats;
+				stats.armageddon_5000_damage++;
 			}
 
 			break;
 
 		//MARK: dispells/cures
-                case SPELL_CURE:
-                        if(!target)
-                                return SPELL_RESULT_INVALID_TARGET;
+		case SPELL_CURE:
+			if(!target)
+				return SPELL_RESULT_INVALID_TARGET;
 
 			for(auto& buff : target->buffs) {
 				const auto& binfo = game_config::get_buff_info(buff.buff_id);
@@ -1687,9 +1877,9 @@ spell_result_e battlefield_t::cast_spell(hero_t* caster, spell_e spell_id, int t
 		case SPELL_STONESKIN:
 		case SPELL_HASTE:
 		//case SPELL_ANGELS_WINGS:
-                case SPELL_DIVINE_INSPIRATION: {
-                        if(!target)
-                                return SPELL_RESULT_INVALID_TARGET;
+		case SPELL_DIVINE_INSPIRATION: {
+			if(!target)
+				return SPELL_RESULT_INVALID_TARGET;
 
 			auto buff = get_buff_for_spell(spell_id);
 			float prebuff_hp_percent = 1.f;
@@ -1776,24 +1966,22 @@ spell_result_e battlefield_t::cast_spell(hero_t* caster, spell_e spell_id, int t
 			break;
 		}
 		
-		//MARK: crowd-control
+		//MARK: debuffs
 		case SPELL_ENTANGLING_ROOTS:
 		case SPELL_PACIFY:
 		case SPELL_PARALYZE:
 		case SPELL_BLIND:
-
-		//MARK: debuffs
-                case SPELL_CURSE:
-                case SPELL_CRIPPLE:
-                case SPELL_SORROW:
-                case SPELL_MISFORTUNE:
-                case SPELL_FEAR:
-                case SPELL_DAMNATION:
-                case SPELL_BERSERK:
-                case SPELL_INFEST:
-                case SPELL_SLOW: {
-                        if(!target)
-                                return SPELL_RESULT_INVALID_TARGET;
+		case SPELL_CURSE:
+		case SPELL_CRIPPLE:
+		case SPELL_SORROW:
+		case SPELL_MISFORTUNE:
+		case SPELL_FEAR:
+		case SPELL_DAMNATION:
+		case SPELL_BERSERK:
+		case SPELL_INFEST:
+		case SPELL_SLOW: {
+			if(!target)
+				return SPELL_RESULT_INVALID_TARGET;
 			
 			auto buff = get_buff_for_spell(spell_id);
 			//berserk lasts until the affected unit performs an attack
@@ -1828,16 +2016,61 @@ spell_result_e battlefield_t::cast_spell(hero_t* caster, spell_e spell_id, int t
 			break;
 			
 		//MARK: summons
-		//case SPELL_SUMMON_ANGEL:
-		//case SPELL_SUMMON_TREANTS:
-		//case SPELL_SUMMON_INFERNAL:
+		case SPELL_SUMMON_ANGEL:
+		case SPELL_SUMMON_TREANTS:
+		case SPELL_SUMMON_EFREET: {
+			int units_to_summon = spell.multiplier[0].get_value(caster->get_effective_power(), caster->get_spell_effect_multiplier(spell_id));
+
+			battlefield_unit_t summoned_unit;
+			summoned_unit.unit_type = UNIT_EFREETI;
+			summoned_unit.stack_size = units_to_summon;
+			summoned_unit.original_stack_size = units_to_summon;
+			summoned_unit.unit_health = get_unit_adjusted_hp(summoned_unit);
+			summoned_unit.was_summoned = true;
+			summoned_unit.is_attacker = (caster == attacking_hero);
+			int pos = 0;
+			for(; pos < caster_troops.size(); pos++) {
+				if(caster_troops[pos].unit_type == UNIT_UNKNOWN)
+					break;
+			}
+
+			if(pos >= caster_troops.size()) //case where we have no more available troops
+				break;
+
+			int id = 0;
+			for(const auto& tr : attacking_army.troops) {
+				if(tr.troop_id >= id)
+					id = tr.troop_id;
+			}
+			for(const auto& tr : defending_army.troops) {
+				if(tr.troop_id >= id)
+					id = tr.troop_id;
+			}
+
+			summoned_unit.troop_id = ++id;
+			summoned_unit.x = 3;
+			summoned_unit.y = 3;
+
+			caster_troops[pos] = summoned_unit;
+			
+			hex_grid.get_hex(summoned_unit.x, summoned_unit.y)->unit = &caster_troops[pos];
+			if(summoned_unit.is_two_hex())
+				hex_grid.get_hex(summoned_unit.x + (summoned_unit.is_attacker ? -1 : 1), summoned_unit.y)->unit = &caster_troops[pos];
+
+			action.affected_units.push_back({caster_troops[pos], 0, 0, false});
+
+			recompute_unit_move_queue();
+
+			break;
+		}
+
 		//case SPELL_HYDRA:
 		//	break;
 		
 		//MARK: heals/resurrection
-                case SPELL_REJUVENATION: {
-                        if(!target)
-                                return SPELL_RESULT_INVALID_TARGET;
+		case SPELL_REJUVENATION: {
+			if(!target)
+				return SPELL_RESULT_INVALID_TARGET;
 
 			//remove debuffs first, then perform healing
 			int max_debuffs_to_remove = spell.multiplier[1].get_value(caster->get_effective_power(), caster->get_spell_effect_multiplier(spell_id));
@@ -1894,11 +2127,11 @@ spell_result_e battlefield_t::cast_spell(hero_t* caster, spell_e spell_id, int t
 		case SPELL_HOLY_LIGHT:
 			break;
 
-                case SPELL_ARCANE_REANIMATION:
-                case SPELL_RESURRECTION:
-                case SPELL_REANIMATE_DEAD: {
-                        if(!target || !is_spell_target_valid(caster, target, spell_id))
-                                return SPELL_RESULT_INVALID_TARGET;
+		case SPELL_ARCANE_REANIMATION:
+		case SPELL_RESURRECTION:
+		case SPELL_REANIMATE_DEAD: {
+			if(!target || !is_spell_target_valid(caster, target, spell_id))
+				return SPELL_RESULT_INVALID_TARGET;
 
 			int hp_to_heal = spell.multiplier[0].get_value(caster->get_effective_power(), caster->get_spell_effect_multiplier(spell_id));
 			if(spell_id == SPELL_RESURRECTION) {
@@ -1909,6 +2142,14 @@ spell_result_e battlefield_t::cast_spell(hero_t* caster, spell_e spell_id, int t
 
 			auto actual_healing = apply_healing_to_stack(hp_to_heal, *target, true);
 			action.affected_units.push_back({ *target, actual_healing.first, actual_healing.second, false, true });
+
+			//for achievement "Second Life"
+			if(actual_healing.first >= 1000) {
+				total_stats.resurrection_1000hp++;
+				auto& stats = caster == attacking_hero ? attacker_stats : defender_stats;
+				stats.resurrection_1000hp++;
+			}
+
 			}
 			break;
 		
@@ -1954,34 +2195,69 @@ spell_result_e battlefield_t::cast_spell(hero_t* caster, spell_e spell_id, int t
 		case SPELL_RAGE:
 			break;
 			
-		//non-combat spells
-		case SPELL_WORMHOLE:
-		case SPELL_MANA_BATTERY:
-		case SPELL_RITUAL:
-			break;
+		default:
+			return SPELL_RESULT_ERROR;
 	}
 	
 	if(caster) {
 		caster->mana -= mana_cost;
+
+		if(caster->is_artifact_in_effect(ARTIFACT_FIFTYS_LUCKY_COIN) && (utils::rand_chance(50)))
+			restore_hero_mana(caster, mana_cost, TALENT_NONE, ARTIFACT_FIFTYS_LUCKY_COIN);
+
+		//uupdate battle stats
+		total_stats.total_spells_cast++;
+		total_stats.total_mana_spent += mana_cost;
+		auto& cstats = (caster == attacking_hero ? attacker_stats : defender_stats);
+		cstats.total_spells_cast++;
+		cstats.total_mana_spent += mana_cost;
+		switch(spell.level) {
+			case 1: total_stats.total_spells_cast_level1++; cstats.total_spells_cast_level1++; break;
+			case 2: total_stats.total_spells_cast_level2++; cstats.total_spells_cast_level2++; break;
+			case 3: total_stats.total_spells_cast_level3++; cstats.total_spells_cast_level3++; break;
+			case 4: total_stats.total_spells_cast_level4++; cstats.total_spells_cast_level4++; break;
+			case 5: total_stats.total_spells_cast_level5++; cstats.total_spells_cast_level5++; break;
+		}
+		switch(spell.school) {
+			case SCHOOL_NATURE: total_stats.total_spells_cast_nature++; cstats.total_spells_cast_nature++; break;
+			case SCHOOL_ARCANE: total_stats.total_spells_cast_arcane++; cstats.total_spells_cast_arcane++; break;
+			case SCHOOL_HOLY: total_stats.total_spells_cast_holy++; cstats.total_spells_cast_holy++; break;
+			case SCHOOL_DESTRUCTION: total_stats.total_spells_cast_destruction++; cstats.total_spells_cast_destruction++; break;
+			case SCHOOL_DEATH: total_stats.total_spells_cast_death++; cstats.total_spells_cast_death++; break;
+			default: break;
+		}
+
+		auto& set_ref = (caster == attacking_hero ? attacker_spells_cast : defender_spells_cast);
+		if(set_ref.insert(spell_id).second) {
+			total_stats.unique_spells_cast++;
+			cstats.unique_spells_cast++;
+		}
+
 		if(caster == attacking_hero) {
 			attacking_hero_used_cast = true;
 
 			if(defending_hero && defending_hero->has_talent(TALENT_ETHER_FEAST))
-				restore_hero_mana(defending_hero, std::round(mana_cost * .3f), TALENT_ETHER_FEAST);		
+				restore_hero_mana(defending_hero, std::round(mana_cost * .3f), TALENT_ETHER_FEAST);
 			
 		}
 		else {
 			defending_hero_used_cast = true;
+
+			if(attacking_hero && attacking_hero->has_talent(TALENT_ETHER_FEAST))
+				restore_hero_mana(attacking_hero, std::round(mana_cost * .3f), TALENT_ETHER_FEAST);
 		}
 	}
 	
-	if(!is_quick_combat)
+	if(!is_quick_combat) {
 		fn_emit_combat_action(action);
+		if(spell_id == SPELL_REAPERS_SCYTHE && secondary_action.effect_value > 0)
+			fn_emit_combat_action(secondary_action);
+	}
 	
 	if(!troops_remain())
 		end_combat();
 	
-        return SPELL_RESULT_OK;
+	return SPELL_RESULT_OK;
 }
 
 battlefield_unit_t* get_random_troop(army_t::battlefield_unit_group_t& troops) {
@@ -2058,13 +2334,21 @@ void battlefield_t::reset() {
 	auto init_troop = [this] (battlefield_unit_t& troop, int x, int y, bool attacker) {
 		troop.x = x;
 		troop.y = y;
+		troop.is_attacker = attacker;
 
 		troop.has_moved = false;
 		troop.has_moraled = false;
 		troop.has_waited = false;
 		troop.has_defended = false;
 		troop.has_cast_spell = false;
-		troop.is_attacker = attacker;
+		troop.spell_casts_remaining = 0;
+		troop.retaliations_remaining = 1;
+
+		if(game_config::get_creature(troop.unit_type).has_inherent_buff(BUFF_SPELLCASTER)) {
+			bool has_talent = attacker ? (attacking_hero && attacking_hero->has_talent(TALENT_GENIE_IN_A_BOTTLE))
+				: (defending_hero && defending_hero->has_talent(TALENT_GENIE_IN_A_BOTTLE));
+			troop.spell_casts_remaining = has_talent ? 3 : 1;
+		}
 		troop.unit_health = get_unit_adjusted_hp(troop);
 		troop.stack_size = troop.original_stack_size;
 		if(troop.is_two_hex()) {
@@ -2102,8 +2386,10 @@ void battlefield_t::reset() {
 	if(attacking_hero) {
 		uint i = 0;
 		for(; i < game_config::HERO_TROOP_SLOTS; i++) {
-			if(attacking_hero->troops[i].is_empty())
+			if(attacking_hero->troops[i].is_empty()) {
+				attacking_army.troops[i].clear();
 				continue;
+			}
 			
 			attacking_army.troops[i] = attacking_hero->troops[i];
 			//todo: handle tactics/group formation
@@ -2136,15 +2422,8 @@ void battlefield_t::reset() {
 		}
 	}
 		
-	if(defending_town) {
-		gate_hp = 2;
-		main_turret_hp = 5;
-		top_turret_hp = 3;
-		bottom_turret_hp = 3;
-		top_inner_wall_hp = 2;
-		top_outer_wall_hp = 2;
-		bottom_inner_wall_hp = 2;
-		bottom_outer_wall_hp = 2;
+	if(defending_town && !defending_hero) {
+		reset_castle_walls();
 
 		int i = 0;
 		if(defending_town->garrisoned_hero) {
@@ -2218,8 +2497,10 @@ void battlefield_t::reset() {
 	else if(defending_hero) {
 		int i = 0;
 		for(; i < game_config::HERO_TROOP_SLOTS; i++) {
-			if(defending_hero->troops[i].stack_size == 0)
+			if(defending_hero->troops[i].stack_size == 0) {
+				defending_army.troops[i].clear();
 				continue;
+			}
 			
 			defending_army.troops[i] = defending_hero->troops[i];
 			int xpos = defending_army.troops[i].is_two_hex() ? game_config::BATTLEFIELD_WIDTH - 2 : game_config::BATTLEFIELD_WIDTH - 1;
@@ -2270,11 +2551,25 @@ void battlefield_t::reset() {
 			}
 		}
 
-		int stack_count = utils::rand_range(min_stacks, max_stacks);
+		uint32_t seed = ((uint32_t)(defending_monster->x & 0xFFFF) << 16) | ((uint16_t)defending_monster->y & 0xFFFF); //fixme
+		std::mt19937_64 rng(seed);
+		std::uniform_int_distribution<int> dist(min_stacks, max_stacks);
+		int stack_count = dist(rng);
 		stack_count = std::clamp(stack_count, 1, (int)game_config::HERO_TROOP_SLOTS);
+		stack_count = std::clamp(stack_count, 1, (int)defending_monster->quantity); //can't split into more stacks than we have creatures
 
 		uint16_t base_size = defending_monster->quantity / stack_count;
 		uint16_t remainder = defending_monster->quantity % stack_count;
+
+		constexpr int y_positions[][game_config::HERO_TROOP_SLOTS] = {
+			{5},
+			{3, 7},
+			{2, 5, 8},
+			{1, 4, 6, 9},
+			{0, 2, 5, 8, 10},
+			{0, 2, 4, 6, 8, 10},
+			{0, 2, 4, 5, 6, 8, 10}
+		};
 
 		for(int i = 0; i < stack_count; i++) {
 			uint16_t size = base_size + (i < remainder ? 1 : 0);
@@ -2283,7 +2578,7 @@ void battlefield_t::reset() {
 			defending_army.troops[i].original_stack_size = size;
 
 			int xpos = defending_army.troops[i].is_two_hex() ? game_config::BATTLEFIELD_WIDTH - 2 : game_config::BATTLEFIELD_WIDTH - 1;
-			init_troop(defending_army.troops[i], xpos, y_layout[i], false);
+			init_troop(defending_army.troops[i], xpos, y_positions[stack_count - 1][i], false);
 		}
 	}
 	else if(is_creature_bank_battle) {
@@ -2380,7 +2675,42 @@ bool obstacle_location_valid(int x, int y) {
 	return (x >= obstacle_margin && x < (game_config::BATTLEFIELD_WIDTH - obstacle_margin) && y < game_config::BATTLEFIELD_HEIGHT);
 }
 
-void battlefield_t::setup_obstacles(bool only_clear) {	
+void battlefield_t::reset_castle_walls() {
+	gate_hp = 2;
+	main_turret_hp = 5;
+	top_turret_hp = 3;
+	bottom_turret_hp = 3;
+	top_inner_wall_hp = 2;
+	top_outer_wall_hp = 2;
+	bottom_inner_wall_hp = 2;
+	bottom_outer_wall_hp = 2;
+
+	//top turret
+	hex_grid.get_hex(13, 0)->passable = false;
+	hex_grid.get_hex(14, 0)->passable = false;
+	//bottom turret
+	hex_grid.get_hex(13, 10)->passable = false;
+	hex_grid.get_hex(14, 10)->passable = false;
+	//top of gate
+	hex_grid.get_hex(10, 4)->passable = false;
+	hex_grid.get_hex(11, 4)->passable = false;
+	//bottom of gate
+	hex_grid.get_hex(10, 6)->passable = false;
+	hex_grid.get_hex(11, 6)->passable = false;
+	//top wall connector
+	hex_grid.get_hex(12, 2)->passable = false;
+	//bottom wall connector
+	hex_grid.get_hex(12, 8)->passable = false;
+
+	//top walls
+	hex_grid.get_hex(13, 1)->passable = false;
+	hex_grid.get_hex(12, 3)->passable = false;
+	//bottom walls
+	hex_grid.get_hex(12, 7)->passable = false;
+	hex_grid.get_hex(13, 9)->passable = false;
+}
+
+void battlefield_t::setup_obstacles(bool only_clear) {
 	//clear existing obstacles if they exist
 	for(int y = 0; y < game_config::BATTLEFIELD_HEIGHT; y++)
 		for(int x = 0; x < game_config::BATTLEFIELD_WIDTH; x++)
@@ -2390,37 +2720,14 @@ void battlefield_t::setup_obstacles(bool only_clear) {
 	if(only_clear)
 		return;
 
-	srand(time(nullptr));
+	//srand(time(nullptr));
 
 	//special case for ship combat
 	if(environment_type == BATTLEFIELD_ENVIRONMENT_WATER) {
 
 	}
 	else if(is_siege()) { //special case for siege
-		//top turret
-		hex_grid.get_hex(13, 0)->passable = false;
-		hex_grid.get_hex(14, 0)->passable = false;
-		//bottom turret
-		hex_grid.get_hex(13, 10)->passable = false;
-		hex_grid.get_hex(14, 10)->passable = false;
-		//top of gate
-		hex_grid.get_hex(10, 4)->passable = false;
-		hex_grid.get_hex(11, 4)->passable = false;
-		//bottom of gate
-		hex_grid.get_hex(10, 6)->passable = false;
-		hex_grid.get_hex(11, 6)->passable = false;
-		//top wall connector
-		hex_grid.get_hex(12, 2)->passable = false;
-		//bottom wall connector
-		hex_grid.get_hex(12, 8)->passable = false;
-
-		//top walls
-		hex_grid.get_hex(13, 1)->passable = false;
-		hex_grid.get_hex(12, 3)->passable = false;
-		//bottom walls
-		hex_grid.get_hex(12, 7)->passable = false;
-		hex_grid.get_hex(13, 9)->passable = false;
-
+		reset_castle_walls();
 		return;
 	}
 	
@@ -2676,7 +2983,7 @@ bool battlefield_t::can_troop_shoot(const battlefield_unit_t* troop) {
 	if(!troop || !troop->is_shooter())
 		return false;
 	
-	if(troop->has_buff(BUFF_RANGED_CAN_SHOOT_ADJACENT))
+	if(troop->has_buff(BUFF_RANGED_CAN_SHOOT_ADJACENT) || troop->is_turret_or_war_machine())
 		return true;
 
 	auto& army_of_unit = troop->is_attacker ? attacking_army : defending_army;
@@ -2850,7 +3157,7 @@ battlefield_hex_t* battlefield_t::get_target_movement_hex(battlefield_unit_t* ac
 			
 	auto movement_area = get_movement_range(*acting_unit, get_unit_adjusted_speed(*acting_unit), acting_unit->is_flyer());
 	
-	sint min_dist = 255; //should be unsigned ?
+	int min_dist = 255; //should be unsigned ?
 	for(auto hex : movement_area) {
 		auto unit = get_unit_on_hex(hex->x, hex->y);
 		if(unit) //hex is occupied
@@ -2921,7 +3228,7 @@ bool battlefield_t::auto_move_troop() {
 		if(target.first) {
 			auto source_hex = hex_grid.get_hex(troop->x, troop->y);
 			auto target_hex = target.second;
-			move_and_attack_unit(*troop, *target.first, target_hex->x, target_hex->y);
+			move_and_attack_unit(*troop, *target.first, target_hex->x, target_hex->y, target.first->x, target.first->y);
 			return true;
 		}
 		else { //no target in range
@@ -2946,7 +3253,7 @@ bool battlefield_t::auto_move_troop() {
 	if(target.first) {
 		auto source_hex = hex_grid.get_hex(troop->x, troop->y);
 		auto target_hex = target.second;
-		move_and_attack_unit(*troop, *target.first, target_hex->x, target_hex->y);
+		move_and_attack_unit(*troop, *target.first, target_hex->x, target_hex->y, target.first->x, target.first->y);
 		return true;
 	}
 	else { //no target in range
@@ -3100,10 +3407,6 @@ battlefield_unit_t* battlefield_t::get_active_unit() {
 	return (unit_move_queue.size() ? unit_move_queue[0] : nullptr);
 }
 
-const battlefield_unit_t* battlefield_t::get_active_unit() const {
-	return const_cast<battlefield_t*>(this)->get_active_unit();
-}
-
 player_e battlefield_t::get_player_of_active_unit() {
 	player_e player = PLAYER_NONE;
 
@@ -3229,6 +3532,8 @@ void battlefield_t::compute_next_unit_to_move() {
 		if(!active_unit)
 			break;
 
+		hero_t* active_hero = (active_unit->is_attacker ? attacking_hero : defending_hero);
+
 		if(active_unit->unit_type == UNIT_CATAPULT) {
 			//if there are no castle walls left to destroy, then we continue to the next unit
 			if(!are_any_castle_walls_remaining()) {
@@ -3237,7 +3542,7 @@ void battlefield_t::compute_next_unit_to_move() {
 			}
 
 			//break out and let player control catapult if we have an attacking hero war machines skill
-			if(attacking_hero && attacking_hero->get_secondary_skill_level(SKILL_WAR_MACHINES) != 0)
+			if(active_hero && active_hero->get_secondary_skill_level(SKILL_WAR_MACHINES) != 0)
 				break;
 
 			//otherwise, have the catapult auto-fire and then we continue to the next unit to act
@@ -3248,7 +3553,7 @@ void battlefield_t::compute_next_unit_to_move() {
 		}
 		else if(active_unit->is_turret()) {
 			//break out and let player control turret if we have a hero in town with war machines skill
-			if(defending_hero && defending_hero->get_secondary_skill_level(SKILL_WAR_MACHINES) != 0)
+			if(active_hero && active_hero->get_secondary_skill_level(SKILL_WAR_MACHINES) != 0)
 				break;
 
 			//otherwise, have the turret auto-fire and then we continue to the next unit to act
@@ -3257,7 +3562,7 @@ void battlefield_t::compute_next_unit_to_move() {
 		}
 		else if(active_unit->unit_type == UNIT_BALLISTA) {
 			//break out and let player control ballista if we have an attacking hero war machines skill
-			if(attacking_hero && attacking_hero->get_secondary_skill_level(SKILL_WAR_MACHINES) != 0)
+			if(active_hero && active_hero->get_secondary_skill_level(SKILL_WAR_MACHINES) != 0)
 				break;
 
 			//otherwise, have the ballista auto-fire and then we continue to the next unit to act
@@ -3271,6 +3576,10 @@ void battlefield_t::compute_next_unit_to_move() {
 		if(morale_chance < 0 && can_troop_act(*active_unit) && !active_unit->has_waited) { //can't mismorale on the wait turn
 			if(utils::rand_chance(std::abs(morale_chance))) {
 				//we mismoraled, emit the action and move on to the next unit
+				auto& active_unit_stats = (active_unit->is_attacker ? attacker_stats : defender_stats);
+				total_stats.total_negative_morale_procs++;
+				active_unit_stats.total_negative_morale_procs++;
+
 				active_unit->has_moved = true;
 				if(!is_quick_combat) {
 					battle_action_t mismorale_action;
@@ -3445,7 +3754,7 @@ bool battlefield_t::recompute_unit_move_queue() {
 	return (unit_move_queue.size() != 0);
 }
 
-bool battlefield_t::move_unit(battlefield_unit_t& unit, sint x, sint y, bool finalize_action) {
+bool battlefield_t::move_unit(battlefield_unit_t& unit, int x, int y, bool finalize_action) {
 	int effective_x = get_two_hex_effective_x(unit, x, y);
 
 	auto from_hex = hex_grid.get_hex(unit.x, unit.y);
@@ -3462,15 +3771,28 @@ bool battlefield_t::move_unit(battlefield_unit_t& unit, sint x, sint y, bool fin
 	if(unit.x == effective_x && unit.y == y)
 		return false;
 	
-	if(!is_move_valid(unit, effective_x, y))
+	//pass in the original x value, as is_move_valid() calculates the effective x for two hex units
+	if(!is_move_valid(unit, x, y))
 		return false;
 
-	auto route = get_unit_route(unit, effective_x, y);
+	route_t route;
+	//only calculate the route if we are walking
+	if(!unit.is_flyer())
+		route = get_unit_route(unit, effective_x, y);
+
+	if(unit.is_flyer()) {
+		uint16_t steps = hex_grid.distance(unit.x, unit.y, effective_x, y);
+		total_stats.total_hexes_flown += steps;
+		(unit.is_attacker ? attacker_stats.total_hexes_flown : defender_stats.total_hexes_flown) += steps;
+	}
+	else {
+		total_stats.total_hexes_walked += (uint16_t)route.size();
+		(unit.is_attacker ? attacker_stats.total_hexes_walked : defender_stats.total_hexes_walked) += (uint16_t)route.size();
+	}
 	
 	//unit loses ON_GUARD buff once they take an action
 	unit.remove_buff(BUFF_ON_GUARD);
 	
-	//todo: check to see if target hex is in range of unit
 	//todo: move unit through hexes (to account for quicksand, firewall, hydra, etc)
 
 	auto original_x = unit.x;
@@ -3496,7 +3818,7 @@ bool battlefield_t::move_unit(battlefield_unit_t& unit, sint x, sint y, bool fin
 		target_tail_hex->unit = &unit;
 
 	if((attacking_hero && attacking_hero->has_talent(TALENT_OVERWHELM)) || (defending_hero && defending_hero->has_talent(TALENT_OVERWHELM)))
-		update_all_units_overwhelm_status();	
+		update_all_units_overwhelm_status();
 	
 	battle_action_t movement_action;
 	if(!is_quick_combat) {
@@ -3517,6 +3839,10 @@ bool battlefield_t::move_unit(battlefield_unit_t& unit, sint x, sint y, bool fin
 			unit.has_moraled = true;
 			unit.has_moved = false;
 
+			auto& unit_stats = (unit.is_attacker ? attacker_stats : defender_stats);
+			total_stats.total_positive_morale_procs++;
+			unit_stats.total_positive_morale_procs++;
+
 			if(!is_quick_combat) {
 				battle_action_t morale_action;
 				morale_action.action = ACTION_MORALED;
@@ -3529,9 +3855,10 @@ bool battlefield_t::move_unit(battlefield_unit_t& unit, sint x, sint y, bool fin
 			}
 		}
 		else {
-			finish_troop_action(&unit);
 			if(!is_quick_combat)
 				fn_emit_combat_action(movement_action);
+
+			finish_troop_action(&unit);
 		}
 	}
 	else if(!is_quick_combat) {
@@ -3644,13 +3971,15 @@ bool battlefield_t::unit_can_attack(battlefield_unit_t* attacker, battlefield_un
 	return true;
 }
 
-bool battlefield_t::move_and_attack_unit(battlefield_unit_t& attacker, battlefield_unit_t& defender, sint from_x, sint from_y) {
-	//if(!move_unit(attacker, from_x, from_y, false))
-	//	return false;
-
+bool battlefield_t::move_and_attack_unit(battlefield_unit_t& attacker, battlefield_unit_t& defender, int from_x, int from_y, int target_x, int target_y) {
 	auto source_movement_hex = hex_grid.get_hex(attacker.x, attacker.y); //used for cavalry's 'mounted' more damage per hex traveled ability
-	move_unit(attacker, from_x, from_y, false);
-	if(!attack_unit(attacker, &defender, false, from_x, from_y, source_movement_hex))
+	
+	from_x = std::clamp(from_x, 0, (int)game_config::BATTLEFIELD_WIDTH - 1);
+
+	if(!(attacker.x == from_x && attacker.y == from_y)) //only call move unit if we are moving to a different hex
+		move_unit(attacker, from_x, from_y, false);
+
+	if(!attack_unit(attacker, &defender, false, from_x, from_y, source_movement_hex, target_x, target_y))
 		return false;
 	
 	return true;
@@ -3664,7 +3993,7 @@ std::pair<uint32_t, uint16_t> battlefield_t::calculate_healing_to_stack(hero_t* 
 	if(spell_id == SPELL_RESURRECTION) {
 		const auto& sp_info = game_config::get_spell(spell_id);
 		int effectiveness_percent = sp_info.multiplier[1].get_value(caster->get_effective_power(), caster->get_spell_effect_multiplier(spell_id));
-		float actual_effectiveness = pow(effectiveness_percent / 100.f, unit.resurrection_count++);
+		float actual_effectiveness = pow(effectiveness_percent / 100.f, unit.resurrection_count);
 		hp_to_heal = std::round(hp_to_heal * (actual_effectiveness));
 	}
 
@@ -3721,52 +4050,23 @@ std::pair<uint32_t, uint16_t> battlefield_t::apply_healing_to_stack(uint32_t hea
 
 				unit_tail_hex->unit = &unit;
 			}
+
+			//after we resurrect a unit, we need to recompute the move queue
+			recompute_unit_move_queue();
+		}
+
+		total_stats.total_healing_done += actual_heal_amount;
+		auto& stats = unit.is_attacker ? attacker_stats : defender_stats;
+		stats.total_healing_done += actual_heal_amount;
+
+		if(revive_count > 0) {
+			total_stats.total_units_resurrected += revive_count;
+			stats.total_units_resurrected += revive_count;
 		}
 
 	}
 
 	return std::make_pair(actual_heal_amount, revive_count);
-
-
-
-	/*
-	uint32_t actual_heal_amount = 0;
-	
-	if(!can_resurrect) {
-		actual_heal_amount = get_unit_adjusted_hp(unit) - std::min(get_unit_adjusted_hp(unit), ((uint32_t)unit.unit_health) + healing);
-		unit.unit_health += actual_heal_amount;
-		return std::make_pair(actual_heal_amount, 0);
-	}
-	
-	int32_t total_hp = (unit.stack_size * get_unit_adjusted_hp(unit)) + unit.unit_health;
-
-	total_hp += healing;
-
-	//healing not enough to rez, short circuit here
-	if(healing <= (get_unit_adjusted_hp(unit) - unit.unit_health)) {
-		unit.unit_health += (uint16_t)healing;
-		return std::make_pair(healing, 0);
-	}
-	
-	healing -= (get_unit_adjusted_hp(unit) - unit.unit_health);
-	
-	uint16_t revive_count = 1 + (healing / (uint32_t)get_unit_adjusted_hp(unit));
-	//can't rez to greater than max stack size
-	revive_count = std::min((int)revive_count, unit.original_stack_size - unit.stack_size);
-	unit.stack_size += revive_count;
-
-	if(revive_count) {
-		uint16_t leftover = healing % (revive_count * get_unit_adjusted_hp(unit));
-		unit.unit_health = leftover == 0 ? get_unit_adjusted_hp(unit) : leftover;
-		actual_heal_amount = (revive_count * get_unit_adjusted_hp(unit)) + leftover;
-	}
-	else {
-		actual_heal_amount = get_unit_adjusted_hp(unit) - unit.unit_health;
-		unit.unit_health = get_unit_adjusted_hp(unit);
-	}
-	
-	return std::make_pair(actual_heal_amount, revive_count);
-	*/
 }
 
 uint32_t battlefield_t::calculate_magic_damage_to_stack(uint32_t base_damage, battlefield_unit_t& defender, magic_damage_e damage_type) {
@@ -3789,6 +4089,8 @@ uint16_t battlefield_t::deal_magic_damage_to_stack(uint32_t damage, battlefield_
 }
 
 uint16_t battlefield_t::deal_damage_to_stack(uint32_t damage, battlefield_unit_t& defender, bool is_spell_damage) {
+	auto& army_of_defender = defender.is_attacker ? attacking_army : defending_army;
+
 	auto starting_troop_count = defender.stack_size;
 	int32_t total_hp = (get_unit_adjusted_hp(defender) * (defender.stack_size - 1)) + defender.unit_health;
 	auto remaining_hp = std::max((int32_t)0, total_hp - (int32_t)damage);
@@ -3815,6 +4117,15 @@ uint16_t battlefield_t::deal_damage_to_stack(uint32_t damage, battlefield_unit_t
 	damage_receiver_stats.total_units_lost += kills;
 	damage_receiver_stats.total_physical_damage_received += (is_spell_damage ? 0 : actual_damage_done);
 	damage_receiver_stats.total_spell_damage_received += (is_spell_damage ? actual_damage_done : 0);
+
+	total_stats.total_damage_done += actual_damage_done;
+	total_stats.total_units_killed += kills;
+	total_stats.total_physical_damage_done += (is_spell_damage ? 0 : actual_damage_done);
+	total_stats.total_spell_damage_done += (is_spell_damage ? actual_damage_done : 0);
+	total_stats.total_damage_received += actual_damage_done;
+	total_stats.total_units_lost += kills;
+	total_stats.total_physical_damage_received += (is_spell_damage ? 0 : actual_damage_done);
+	total_stats.total_spell_damage_received += (is_spell_damage ? actual_damage_done : 0);
 
 	if(defender.stack_size == 0) {
 		hex_grid.get_hex(defender.x, defender.y)->unit = nullptr;
@@ -3856,9 +4167,9 @@ void battlefield_t::handle_post_attack_effects(battlefield_unit_t& attacker, bat
 	auto& army_of_defender = defender.is_attacker ? attacking_army : defending_army;
 	
 	//attacking/getting hit grants rage to barbarians
-	if(army_of_attacker.hero && army_of_attacker.hero->hero_class == HERO_BARBARIAN)
+	if(army_of_attacker.hero && army_of_attacker.hero->hero_class == HERO_CLASS_BARBARIAN)
 		army_of_attacker.hero->mana = std::min((uint16_t)(army_of_attacker.hero->mana + 1), army_of_attacker.hero->get_maximum_mana());
-	if(army_of_defender.hero && army_of_defender.hero->hero_class == HERO_BARBARIAN)
+	if(army_of_defender.hero && army_of_defender.hero->hero_class == HERO_CLASS_BARBARIAN)
 		army_of_defender.hero->mana = std::min((uint16_t)(army_of_defender.hero->mana + 1), army_of_defender.hero->get_maximum_mana());
 	
 	if(army_of_attacker.is_affected_by_talent(TALENT_CRUSADE)) {
@@ -3892,6 +4203,12 @@ void battlefield_t::handle_post_attack_effects(battlefield_unit_t& attacker, bat
 			//if we steal any hp, we steal a minimum of 1 hp
 			uint32_t max_lifesteal_hp = std::max(1u, (uint32_t)std::round(lifesteal_percent * damage));
 			auto actual_lifesteal = apply_healing_to_stack(max_lifesteal_hp, attacker, true);
+
+			if(actual_lifesteal.first > 0) {
+				total_stats.total_life_stolen += actual_lifesteal.first;
+				auto& stats = attacker.is_attacker ? attacker_stats : defender_stats;
+				stats.total_life_stolen += actual_lifesteal.first;
+			}
 			
 			if(!is_quick_combat && actual_lifesteal.first > 0) {
 				battle_action_t action;
@@ -3921,6 +4238,50 @@ void battlefield_t::handle_post_attack_effects(battlefield_unit_t& attacker, bat
 
 	if(was_lucky_strike && army_of_attacker.is_affected_by_talent(TALENT_INSPIRATION))
 		restore_hero_mana(army_of_attacker.hero, 1, TALENT_INSPIRATION);
+
+
+	//check to see if we proc phoenix reincarnation_chance effect
+	if(defender.stack_size == 0 && !defender.was_reincarnated) {
+		int reincarnation_chance = 0;
+		if(defender.unit_type == UNIT_PHOENIX) {
+			if(army_of_defender.hero && army_of_defender.hero->specialty == SPECIALTY_PHOENIX)
+				reincarnation_chance += 40;
+			else
+				reincarnation_chance += 20;
+		}
+		if(army_of_defender.hero && army_of_defender.hero->is_artifact_in_effect(ARTIFACT_RISE_OF_THE_PHOENIX))
+			reincarnation_chance += 20;
+
+		if(reincarnation_chance > 0) {
+			int units_per_rebirth = 100 / reincarnation_chance;
+			int base_count = defender.original_stack_size / units_per_rebirth;
+			int remaining_units = defender.original_stack_size % units_per_rebirth;
+			int remaining_chance = (remaining_units * reincarnation_chance);
+
+			int total_reincarnated = base_count + (utils::rand_chance(remaining_chance) ? 1 : 0);
+
+			if(total_reincarnated > 0) {
+				defender.stack_size = total_reincarnated;
+				defender.was_reincarnated = true;
+
+				hex_grid.get_hex(defender.x, defender.y)->unit = &defender;
+				if(defender.is_two_hex()) {
+					int tail_direction = defender.is_attacker ? -1 : 1;
+					hex_grid.get_hex(defender.x + tail_direction, defender.y)->unit = &defender;
+				}
+					
+				if(!is_quick_combat) {
+					battle_action_t action;
+					action.action = ACTION_UNIT_REINCARNATED;
+					action.acting_unit = defender;
+					action.effect_value = total_reincarnated;
+					fn_emit_combat_action(action);
+				}
+
+				return;
+			}
+		}
+	}
 
 	//at this point, if the defender is dead, the following effects cannot apply, so we bail out
 	if(!defender.stack_size)
@@ -3954,7 +4315,6 @@ void battlefield_t::handle_post_attack_effects(battlefield_unit_t& attacker, bat
 		defender.add_buff(BUFF_WING_CLIPPED, 1);
 	}
 
-
 	if(applied_buff != BUFF_NONE && !is_quick_combat) {
 		battle_action_t action;
 		action.action = ACTION_BUFF_APPLIED;
@@ -3964,7 +4324,6 @@ void battlefield_t::handle_post_attack_effects(battlefield_unit_t& attacker, bat
 		//action.log_message = log_message;
 		fn_emit_combat_action(action);
 	}
-
 }
 
 const int range_penalty_hex_distance = 10;
@@ -4002,8 +4361,6 @@ uint32_t battlefield_t::apply_shooter_melee_penalty(uint32_t damage, battlefield
 }
 
 int battlefield_t::is_hit_lucky(battlefield_unit_t& unit) {
-	//return (rand() % 2 == 0);
-
 	auto luck = get_unit_adjusted_luck(unit);
 	if(luck == 0)
 		return 0;
@@ -4052,14 +4409,28 @@ uint32_t battlefield_t::apply_luck_damage_modifier(const battlefield_unit_t& uni
 	return std::max(2u, (uint32_t)(std::round(base_damage * damage_bonus)));
 }
 
-bool battlefield_t::attack_unit(battlefield_unit_t& attacker, battlefield_unit_t* target_unit, bool use_ranged_attack, int hex_x, int hex_y, battlefield_hex_t* source_movement_hex) {
+bool battlefield_t::attack_unit(battlefield_unit_t& attacker, battlefield_unit_t* target_unit, bool use_ranged_attack, int hex_x, int hex_y, battlefield_hex_t* source_movement_hex, int target_x, int target_y) {
 	auto& army_of_attacker = attacker.is_attacker ? attacking_army : defending_army;
 	auto& attacking_unit_stats = (attacker.is_attacker ? attacker_stats : defender_stats);
 	auto& target_unit_stats = (attacker.is_attacker ? defender_stats : attacker_stats);
 	bool ranged_attack = use_ranged_attack && can_troop_shoot(&attacker);
 	
+	attacking_unit_stats.total_attacks_made++;
+	target_unit_stats.total_attacks_received++;
+	total_stats.total_attacks_made++;
+	total_stats.total_attacks_received++;
+
 	//see if we get a luck proc
 	int luck_effect = is_hit_lucky(attacker);
+	
+	if(luck_effect == 1) {
+		total_stats.total_positive_luck_procs++;
+		attacking_unit_stats.total_positive_luck_procs++;
+	}
+	else if(luck_effect == -1) {
+		total_stats.total_negative_luck_procs++;
+		attacking_unit_stats.total_negative_luck_procs++;
+	}
 
 	//handle units with AOE attacks (lich, demon)
 	bool death_cloud = attacker.has_buff(BUFF_LICH_DEATH_CLOUD_ATTACK);
@@ -4108,8 +4479,15 @@ bool battlefield_t::attack_unit(battlefield_unit_t& attacker, battlefield_unit_t
 			auto adjacent_kills = deal_damage_to_stack(adjacent_damage, *unit);
 			total_kills += adjacent_kills;
 			units_hit.push_back({unit, {adjacent_damage, adjacent_kills}});
+			total_units_hit++;
 
 			handle_post_attack_effects(attacker, *unit, adjacent_damage, adjacent_kills, false, luck_effect == 1);
+		}
+
+		//for achievement "Cloud of Death"
+		if(death_cloud && total_units_hit >= 7) {
+			total_stats.death_cloud_7units++;
+			attacking_unit_stats.death_cloud_7units++;
 		}
 
 		if(!is_quick_combat) {
@@ -4127,6 +4505,9 @@ bool battlefield_t::attack_unit(battlefield_unit_t& attacker, battlefield_unit_t
 		//we can potentially morale here
 		bool morale = utils::rand_chance(get_unit_morale_chance(attacker)) && can_troop_morale(attacker);
 		if(morale) {
+			total_stats.total_positive_morale_procs++;
+			attacking_unit_stats.total_positive_morale_procs++;
+
 			if(!is_quick_combat) {
 				battle_action_t action;
 				action.action = ACTION_MORALED;
@@ -4153,6 +4534,7 @@ bool battlefield_t::attack_unit(battlefield_unit_t& attacker, battlefield_unit_t
 
 	battlefield_unit_t& defender = *target_unit;
 	auto& army_of_defender = defender.is_attacker ? attacking_army : defending_army;
+
 	//melee units cannot attack non-adjacent units
 	if(!ranged_attack && !are_units_adjacent(&attacker, &defender))
 		return false;
@@ -4165,6 +4547,13 @@ bool battlefield_t::attack_unit(battlefield_unit_t& attacker, battlefield_unit_t
 	auto damage = calculate_damage(attacker, defender, ranged_attack, false, attack_from_hex, source_movement_hex);
 	damage = apply_luck_damage_modifier(attacker, damage, luck_effect);
 	auto kills = deal_damage_to_stack(damage, defender);
+
+	if(!ranged_attack && damage > total_stats.max_damage_single_melee_attack) {
+		total_stats.max_damage_single_melee_attack = damage;
+		auto& stats = attacker.is_attacker ? attacker_stats : defender_stats;
+		if(damage > stats.max_damage_single_melee_attack)
+			stats.max_damage_single_melee_attack = damage;
+	}
 
 	//apply bonechill debuff on melee attack (if talent applies)
 	if(!ranged_attack && attacker.has_buff(BUFF_UNDEAD) && army_of_attacker.is_affected_by_talent(TALENT_BONECHILL) && defender.stack_size) {
@@ -4190,8 +4579,27 @@ bool battlefield_t::attack_unit(battlefield_unit_t& attacker, battlefield_unit_t
 	
 	//handle breath attack
 	if(!ranged_attack && attacker.has_buff(BUFF_DRAGON_BREATH_ATTACK)) {
-		auto breath_dir = hex_grid.get_adjacent_hex_direction(hex_x, hex_y, target_unit->x, target_unit->y);
-		auto breath_hex = hex_grid.get_adjacent_hex(target_unit->x, target_unit->y, breath_dir);
+		auto target_hex = coord_t{target_unit->x, target_unit->y};
+		if(target_x != target_unit->x || target_y != target_unit->y) {
+			target_hex.x = target_x;
+			target_hex.y = target_y;
+		}
+
+		//if(target_unit->is_two_hex()) {
+		//	//are we attacking the front hex or back hex of a two hex target unit?
+		//	if(!hex_grid.is_in_radius_of(target_unit->x, target_unit->y, attack_from_hex->x, attack_from_hex->y, 1)) 
+		//		target_hex.x = target_unit->x + (target_unit->is_attacker ? -1 : 1);
+		//}
+
+		//we can have the case where the attack from hex isn't adjacent to the target hex
+		//this can happen with two hex units attacking 'backward' (e.g. when an 'attacker' two hex unit attacks to the west)
+		auto adjusted_attack_from_hex = coord_t{attack_from_hex->x, attack_from_hex->y};
+		if(!hex_grid.is_in_radius_of(target_hex.x, target_hex.y, attack_from_hex->x, attack_from_hex->y, 1))
+			adjusted_attack_from_hex.x = attacker.x + (attacker.is_attacker ? -1 : 1);
+
+		auto breath_dir = hex_grid.get_adjacent_hex_direction(adjusted_attack_from_hex.x, adjusted_attack_from_hex.y, target_hex.x, target_hex.y);
+		auto breath_hex = hex_grid.get_adjacent_hex(target_hex.x, target_hex.y, breath_dir);
+
 		auto breath_target = breath_hex ? breath_hex->unit : nullptr;
 		auto breath_immune = army_of_defender.hero && army_of_defender.hero->is_artifact_in_effect(ARTIFACT_SCALES_OF_THE_RED_DRAGON);
 		if(breath_hex && breath_target && !breath_immune && (breath_target != target_unit)) { //can't hit the same unit twice
@@ -4222,10 +4630,25 @@ bool battlefield_t::attack_unit(battlefield_unit_t& attacker, battlefield_unit_t
 		if(!defender.stack_size || !attacker.stack_size || defender.is_disabled())
 			break;
 
+		auto& retaliator_stats = defender.is_attacker ? attacker_stats : defender_stats;
+		auto& recv_stats = attacker.is_attacker ? defender_stats : attacker_stats;
+		retaliator_stats.total_retaliations_made++;
+		//retaliator_stats.total_attacks_made++; //does a retaliation count as an 'attack'??
+		recv_stats.total_attacks_received++;
+
 		damage = calculate_damage(defender, attacker, false, true);
 		luck_effect = is_hit_lucky(defender);
 		damage = apply_luck_damage_modifier(defender, damage, luck_effect);
 		kills = deal_damage_to_stack(damage, attacker);
+
+		if(luck_effect == 1) {
+			total_stats.total_positive_luck_procs++;
+			retaliator_stats.total_positive_luck_procs++;
+		}
+		else if(luck_effect == -1) {
+			total_stats.total_negative_luck_procs++;
+			retaliator_stats.total_negative_luck_procs++;
+		}
 		
 		battle_action_t retaliation_action;
 		if(!is_quick_combat) {
@@ -4299,6 +4722,18 @@ bool battlefield_t::attack_unit(battlefield_unit_t& attacker, battlefield_unit_t
 		luck_effect = is_hit_lucky(attacker);
 		damage = apply_luck_damage_modifier(attacker, damage, luck_effect);
 
+		attacking_unit_stats.total_attacks_made++;
+		target_unit_stats.total_attacks_received++;
+
+		if(luck_effect == 1) {
+			total_stats.total_positive_luck_procs++;
+			attacking_unit_stats.total_positive_luck_procs++;
+		}
+		else if(luck_effect == -1) {
+			total_stats.total_negative_luck_procs++;
+			attacking_unit_stats.total_negative_luck_procs++;
+		}		
+
 		//handle certain specialties where a unit's second attack deals more damage
 		if((attacker.unit_type == UNIT_CRUSADER && army_of_attacker.is_affected_by_specialty(SPECIALTY_CRUSADERS)) ||
 			(attacker.unit_type == UNIT_WOLF && army_of_attacker.is_affected_by_specialty(SPECIALTY_WOLVES))) {
@@ -4326,6 +4761,9 @@ bool battlefield_t::attack_unit(battlefield_unit_t& attacker, battlefield_unit_t
 	//we can potentially morale here
 	bool morale = utils::rand_chance(get_unit_morale_chance(attacker)) && can_troop_morale(attacker);
 	if(morale) {
+		total_stats.total_positive_morale_procs++;
+		attacking_unit_stats.total_positive_morale_procs++;
+
 		if(!is_quick_combat) {
 			battle_action_t action;
 			action.action = ACTION_MORALED;
@@ -4376,25 +4814,25 @@ battlefield_unit_t* battlefield_t::get_unit_on_hex(hex_location_t point) {
 }
 
 //this function only returns units that are able to be resurrected/revived
-//fixme: change to wrapper function get_revivable_unit_on_hex(sint x, sint y) which checks for clearance
-battlefield_unit_t* battlefield_t::get_dead_unit_on_hex(sint x, sint y) {
+//fixme: change to wrapper function get_revivable_unit_on_hex(int x, int y) which checks for clearance
+battlefield_unit_t* battlefield_t::get_dead_unit_on_hex(int x, int y) {
 	for(auto i = 0; i < army_t::MAX_BATTLEFIELD_TROOPS; i++) {
 		auto& at = attacking_army.troops[i];
 		auto& dt = defending_army.troops[i];
 
-		if(at.stack_size == 0 && at.unit_type != UNIT_UNKNOWN && at.x == x) {
+		if(at.stack_size == 0 && at.unit_type != UNIT_UNKNOWN && at.y == y) {
 			int tail_direction = at.is_attacker ? -1 : 1;
-			if(at.is_two_hex() && (at.y == y || (at.y + tail_direction) == y))
+			if(at.is_two_hex() && (at.x == x || (at.x + tail_direction) == x))
 				return &at;
-			else if(!at.is_two_hex() && at.y == y)
+			else if(!at.is_two_hex() && at.x == x)
 				return &at;
 		}
 
-		if(dt.stack_size == 0 && dt.unit_type != UNIT_UNKNOWN && dt.x == x) {
+		if(dt.stack_size == 0 && dt.unit_type != UNIT_UNKNOWN && dt.y == y) {
 			int tail_direction = dt.is_attacker ? -1 : 1;
-			if(dt.is_two_hex() && (dt.y == y || (dt.y + tail_direction) == y))
+			if(dt.is_two_hex() && (dt.x == x || (dt.x + tail_direction) == x))
 				return &dt;
-			else if(!dt.is_two_hex() && dt.y == y)
+			else if(!dt.is_two_hex() && dt.x == x)
 				return &dt;
 		}
 	}
@@ -4402,9 +4840,57 @@ battlefield_unit_t* battlefield_t::get_dead_unit_on_hex(sint x, sint y) {
 	return nullptr;
 }
 
-battlefield_unit_t* battlefield_t::get_unit_on_hex(sint x, sint y) {
+battlefield_unit_t* battlefield_t::get_unit_on_hex(int x, int y) {
 	auto hex = hex_grid.get_hex(x, y);
 	return hex ? hex->unit : nullptr;
+}
+
+bool battlefield_t::is_unit_immune_to_spell(const battlefield_unit_t* unit, spell_e spell_id) const {
+	if(unit->unit_type == UNIT_CATAPULT)
+		return true;
+	
+	if(unit->has_buff(BUFF_UNDEAD)) {
+		if(spell_id == SPELL_BLESS || spell_id == SPELL_MASS_BLESS)
+			return true;
+	}
+	else { //non-undead
+		if(spell_id == SPELL_REANIMATE_DEAD)
+			return true;
+	}
+
+	if(unit->has_buff(BUFF_ANIMATED) || unit->has_buff(BUFF_UNDEAD)) {
+		if(spell_id == SPELL_RESURRECTION)
+			return true;
+	}
+
+	if(spell_id == SPELL_ARCANE_REANIMATION)
+		return !(unit->unit_type == UNIT_GOLEM || unit->unit_type == UNIT_ARCANE_CONSTRUCT);
+
+	if(unit->has_buff(BUFF_MIND_SPELL_IMMUNITY) || unit->has_buff(BUFF_ANIMATED) || unit->has_buff(BUFF_UNDEAD)) {
+		if(spell_id == SPELL_PARALYZE || spell_id == SPELL_CURSE || spell_id == SPELL_MASS_CURSE ||
+			spell_id == SPELL_BERSERK || spell_id == SPELL_SORROW || spell_id == SPELL_FEAR || spell_id == SPELL_DAMNATION ||
+			spell_id == SPELL_BLIND || spell_id == SPELL_PACIFY)
+			return true;
+	}
+
+	if(unit->is_turret() || unit->unit_type == UNIT_BALLISTA) {
+		if(spell_id == SPELL_MASS_BLESS || spell_id == SPELL_MASS_CURSE)
+			return true;
+
+		return false;
+	}
+
+	const auto& spell_info = game_config::get_spell(spell_id);
+	if(spell_info.school == SCHOOL_ARCANE && unit->has_buff(BUFF_ARCANE_IMMUNITY))
+		return true;
+	if(spell_info.damage_type == MAGIC_DAMAGE_FROST && unit->has_buff(BUFF_FROST_IMMUNITY))
+		return true;
+	if(spell_info.damage_type == MAGIC_DAMAGE_FIRE && unit->has_buff(BUFF_FIRE_IMMUNITY))
+		return true;
+	if(spell_info.damage_type == MAGIC_DAMAGE_LIGHTNING && unit->has_buff(BUFF_LIGHTNING_IMMUNITY))
+		return true;
+
+	return false;
 }
 
 bool battlefield_t::is_spell_target_valid(hero_t* caster, int target_x, int target_y, spell_e spell_id) {
@@ -4436,53 +4922,26 @@ bool battlefield_t::is_spell_target_valid(hero_t* caster, int target_x, int targ
 	return true;
 }
 
-bool battlefield_t::is_unit_immune_to_spell(const battlefield_unit_t* unit, spell_e spell_id) const {
-	if(unit->unit_type == UNIT_CATAPULT)
-		return true;
+bool battlefield_t::is_spell_target_valid(hero_t* caster, battlefield_unit_t* unit, spell_e spell_id) {
+	if(!caster || !unit || unit->unit_type == UNIT_UNKNOWN || spell_id == SPELL_UNKNOWN || unit->is_turret_or_war_machine())
+		return false;
 	
-	if(unit->has_buff(BUFF_UNDEAD)) {
-		if(spell_id == SPELL_BLESS || spell_id == SPELL_MASS_BLESS)
-			return true;
+	if(spell_id == SPELL_RESURRECTION || spell_id == SPELL_REANIMATE_DEAD || spell_id == SPELL_ARCANE_REANIMATION) {
+		//need to check if the corpse is blocked by another unit
+		if(get_unit_on_hex(unit->x, unit->y) != nullptr && get_unit_on_hex(unit->x, unit->y) != unit)
+			return false;
+
+		if(unit->is_two_hex()) {
+			int tail_direction = (unit->is_attacker ? -1 : 1);
+			if(get_unit_on_hex(unit->x + tail_direction, unit->y) != nullptr && get_unit_on_hex(unit->x + tail_direction, unit->y) != unit)
+				return false;
+		}
 	}
-	if(unit->has_buff(BUFF_ANIMATED) || unit->has_buff(BUFF_UNDEAD)) {
-		if(spell_id == SPELL_RESURRECTION)
+	else {
+		if(unit->is_empty()) //any non-resurrection spell is invalid on an empty stack
 			return false;
 	}
 
-	if(spell_id == SPELL_ARCANE_REANIMATION)
-		return (unit->unit_type == UNIT_GOLEM || unit->unit_type == UNIT_ARCANE_CONSTRUCT);
-
-	if(unit->has_buff(BUFF_MIND_SPELL_IMMUNITY) || unit->has_buff(BUFF_ANIMATED) || unit->has_buff(BUFF_UNDEAD)) {
-		if(spell_id == SPELL_PARALYZE || spell_id == SPELL_CURSE || spell_id == SPELL_MASS_CURSE ||
-			spell_id == SPELL_BERSERK || spell_id == SPELL_SORROW || spell_id == SPELL_FEAR || spell_id == SPELL_DAMNATION ||
-			spell_id == SPELL_BLIND || spell_id == SPELL_PACIFY)
-			return true;
-	}
-
-	if(unit->is_turret() || unit->unit_type == UNIT_BALLISTA) {
-		if(spell_id == SPELL_MASS_BLESS || spell_id == SPELL_MASS_CURSE)
-			return true;
-
-		return false;
-	}
-
-	const auto& spell_info = game_config::get_spell(spell_id);
-	if(spell_info.school == SCHOOL_ARCANE && unit->has_buff(BUFF_ARCANE_IMMUNITY))
-		return true;
-	if(spell_info.damage_type == MAGIC_DAMAGE_FROST && unit->has_buff(BUFF_FROST_IMMUNITY))
-		return true;
-	if(spell_info.damage_type == MAGIC_DAMAGE_FIRE && unit->has_buff(BUFF_FIRE_IMMUNITY))
-		return true;
-	if(spell_info.damage_type == MAGIC_DAMAGE_LIGHTNING && unit->has_buff(BUFF_LIGHTNING_IMMUNITY))
-		return true;
-
-	return false;
-}
-
-bool battlefield_t::is_spell_target_valid(hero_t* caster, battlefield_unit_t* unit, spell_e spell_id) {
-	if(!caster || !unit || spell_id == SPELL_UNKNOWN)
-		return false;
-	
 	auto& army_of_unit = unit->is_attacker ? attacking_army : defending_army;
 
 	if(army_of_unit.is_affected_by_talent(TALENT_HOLY_WARD) && (spell_id == SPELL_CURSE || spell_id == SPELL_MASS_CURSE))
@@ -4505,18 +4964,25 @@ bool battlefield_t::is_spell_target_valid(hero_t* caster, battlefield_unit_t* un
 	else if((spell_info.target == TARGET_SINGLE_ENEMY || spell_info.target == TARGET_ALL_ENEMY) && is_target_ally)
 		return false;
 
-	//todo: check for healing/resurrection spells not healing because the target is at full hp
-	// 
-	
-	
-//	TARGET_HEX_RADIUS_1,
-//	TARGET_HEX_RADIUS_2,
-//	TARGET_HEX_RADIUS_3,
-//	TARGET_HEX_RADIUS_1_EXCLUDE_CENTER,
-//	TARGET_2_HEX_UP_DOWN,
-//	TARGET_2_HEX_LEFT_RIGHT,
-//	TARGET_3_HEX_UP_DOWN,
-//	TARGET_3_HEX_LEFT_RIGHT,
+	//check for healing/resurrection spells not healing because the target is at full hp
+	if(spell_info.is_healing_spell()) {
+		bool is_hp_full = (unit->stack_size == unit->original_stack_size) && (unit->unit_health == get_unit_adjusted_hp(*unit));
+		bool has_negative_debuffs = false;
+
+		for(const auto& b : unit->buffs) {
+			const auto& binfo = game_config::get_buff_info(b.buff_id);
+			if(binfo.type == BUFF_TYPE_NEGATIVE) {
+				has_negative_debuffs = true;
+				break;
+			}
+		}
+
+		if((spell_id == SPELL_RESURRECTION || spell_id == SPELL_REANIMATE_DEAD || spell_id == SPELL_ARCANE_REANIMATION) && is_hp_full)
+			return false;
+
+		if((spell_id == SPELL_REJUVENATION || spell_id == SPELL_MASS_REJUVENATION) && is_hp_full && !has_negative_debuffs)
+			return false;
+	}	
 	
 	return true;
 }
@@ -4532,6 +4998,9 @@ battle_result_e battlefield_t::end_combat() {
 	//	combat_log("Attacker Casualties:");
 	
 	for(auto& tr : attacking_army.troops) {
+		if(tr.is_turret_or_war_machine() || tr.was_summoned)
+			continue;
+
 		attacker_remaining += tr.stack_size;
 		auto losses = tr.original_stack_size - tr.stack_size;
 		if(losses == 0)
@@ -4545,6 +5014,9 @@ battle_result_e battlefield_t::end_combat() {
 	//	combat_log("Defender Casualties:");
 	
 	for(auto& tr : defending_army.troops) {
+		if(tr.is_turret_or_war_machine() || tr.was_summoned)
+			continue;
+
 		defender_remaining += tr.stack_size;
 		auto losses = tr.original_stack_size - tr.stack_size;
 		if(losses == 0)
@@ -4565,6 +5037,13 @@ battle_result_e battlefield_t::end_combat() {
 		
 	calculate_necromancy_results(result);
 	calculate_captured_artifacts(result);
+
+	if(!is_quick_combat) {
+		battle_action_t action;
+		action.action = ACTION_COMBAT_ENDED;
+		action.effect_value = result;
+		fn_emit_combat_action(action);
+	}
 	
 	return result;
 }
@@ -4665,10 +5144,10 @@ void battlefield_t::calculate_captured_artifacts(battle_result_e battle_result) 
 }
 
 battle_result_e battlefield_t::compute_quick_combat() {
+	is_quick_combat = true;
+
 	if(!combat_started)
 		start_combat();
-
-	is_quick_combat = true;
 
 	while(true) {
 		//move_unit(unit_move_queue.first());
@@ -4678,7 +5157,7 @@ battle_result_e battlefield_t::compute_quick_combat() {
 			break;
 			
 		if(round > game_config::MAX_COMBAT_ROUNDS) {
-			std::cout << "warning: combat exceeded maximum round limit.\n";
+			//std::cout << "warning: combat exceeded maximum round limit.\n";
 			break;
 		}
 	}

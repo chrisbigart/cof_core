@@ -7,28 +7,17 @@
 #include "core/adventure_map.h"
 #include "core/battlefield.h"
 #include "core/qt_headers.h"
+#include "core/achievements.h"
 
 #include <string>
 #include <array>
 #include <thread>
+#include <random>
 #include <functional>
 
-//#pragma push_macro("check")
-//#undef check
-//
-//#pragma push_macro("verify")
-//#undef verify
-//
-//#include <QDateTime>
-//#include <QBitArray>
-//#include <QUuid>
-//
-//#pragma pop_macro("check")
-//#pragma pop_macro("verify")
-
-enum hero_class_e : uint8_t;
+enum hero_class_e : uint16_t;
 enum player_color_e : uint8_t;
-
+//enum achievement_e : uint16_t;
 
 enum object_metatype_e {
 	OBJECT_METATYPE_UNKNOWN,
@@ -53,15 +42,13 @@ enum editor_brush_category_e {
 struct object_info_t {
 	int16_t asset_id = -1;
 	std::string name;
-	std::string filename;
 	object_metatype_e object_metatype = OBJECT_METATYPE_UNKNOWN;
-	interactable_object_e interactable_object_type = OBJECT_UNKNOWN;
-	terrain_type_e terrain_type = TERRAIN_UNKNOWN;
 	editor_brush_category_e editor_brush_category = CATEGORY_UNKNOWN;
-	int8_t center_x = 0;
-	int8_t center_y = 0;
-	quint64 passability = 0;
-	quint64 interactability = 0;
+	interactable_object_e interactable_object_type = OBJECT_UNKNOWN;
+	std::bitset<16> allowed_terrain_types = 0xFF;
+	std::bitset<64> passability = 0;
+	std::bitset<64> interactability = 0;
+	std::bitset<64> tree_placement = 0;
 };
 
 struct save_game_header_t {
@@ -129,6 +116,7 @@ struct exploration_stats_t {
 	uint16_t maps_fully_revealed_large = 0;
 	uint32_t watchtowers_visited = 0;
 	uint32_t keymaster_tents_visited = 0;
+	uint32_t signs_visited = 0;
 	uint32_t campfires_visited = 0;
 	uint16_t portals_used = 0;
 };
@@ -211,6 +199,7 @@ struct player_t {
 	static constexpr int NUMBER_OF_RECRUITABLE_HEROES = 3;
 	std::array<hero_t, NUMBER_OF_RECRUITABLE_HEROES> heroes_available_to_recruit;
 	bool has_completed_turn = false;
+	std::bitset<16> keys_found = 0;
 	resource_group_t resources;
 	game_stats_t player_stats;
 	QBitArray tile_visibility;
@@ -274,7 +263,7 @@ struct replay_action_t {
 	} target_object_type;
 };
 
-enum dialog_type_e {
+enum dialog_type_e : int {
 	DIALOG_TYPE_NONE,
 	DIALOG_TYPE_PICKUP_ARTIFACT,
 	DIALOG_TYPE_PICKUP_RESOURCE,
@@ -293,6 +282,7 @@ enum dialog_type_e {
 	DIALOG_TYPE_MAGIC_SHRINE_VISIT,
 	DIALOG_TYPE_HUT_OF_THE_MAGI,
 	DIALOG_TYPE_GAZEBO_VISIT,
+	DIALOG_TYPE_WAGON_VISIT,
 	DIALOG_TYPE_GRAVEYARD_VISIT,
 	DIALOG_TYPE_GRAVEYARD_RESULT,
 	DIALOG_TYPE_SCHOOL_OF_WAR_CHOICE,
@@ -306,11 +296,13 @@ enum dialog_type_e {
 	DIALOG_TYPE_MINE,
 	DIALOG_TYPE_WATERWHEEL,
 	DIALOG_TYPE_WINDMILL,
+	DIALOG_TYPE_WATCHTOWER,
 	DIALOG_TYPE_SIGN,
 	DIALOG_TYPE_STANDING_STONES,
 	DIALOG_TYPE_MERCENARY_CAMP,
 	DIALOG_TYPE_WELL,
 	DIALOG_TYPE_MONUMENT,
+	DIALOG_TYPE_KEYMASTER_TENT,
 	DIALOG_TYPE_GAME_EVENT_VICTORY,
 	DIALOG_TYPE_GAME_EVENT_LOSS,
 	DIALOG_TYPE_EVENT,
@@ -318,7 +310,11 @@ enum dialog_type_e {
 	DIALOG_TYPE_EVENT_ATTACKED,
 	DIALOG_TYPE_CAPTURED_ARTIFACTS,
 	DIALOG_TYPE_QUICK_COMBAT_CONFIRMATION,
-	DIALOG_TYPE_QUIT_GAME_CONFIRMATION
+	DIALOG_TYPE_RETREAT_CONFIRMATION,
+	DIALOG_TYPE_HERO_DISMISS_CONFIRMATION,
+	DIALOG_TYPE_TROOP_DISMISS_CONFIRMATION,
+	DIALOG_TYPE_QUIT_GAME_CONFIRMATION,
+	DIALOG_TYPE_CONSUME_SCROLL_CONFIRMATION
 };
 
 enum well_visit_result_e {
@@ -411,6 +407,7 @@ struct game_t {
 	bool battle_retreat();
 	void apply_battle_necromancy_results(hero_t* hero);
 	void replay_battle();
+	bool build_building(town_t* town, building_e building_id);
 	bool buy_troops_at_town(player_e player, town_t* town, uint slot_num, uint16_t count);
 	hero_t* recruit_hero_at_town(player_e player, int selection, town_t* town);
 	bool buy_troops_at_object(player_e player_num, interactable_object_t* object, uint16_t count);
@@ -447,7 +444,7 @@ struct game_t {
 	bool is_tile_visible_and_observable(int x, int y, player_e player) const;
 	void update_visibility();
 	void update_visibility(player_e player);
-	void reveal_area(player_e player, int x, int y, int reveal_radius, int observe_radius);
+	int reveal_area(player_e player, int x, int y, int reveal_radius, int observe_radius);
 	uint save_game(const std::string& filename);
 	static uint read_save_game_header_stream(QDataStream& stream, save_game_header_t& header);
 	static uint write_save_game_header_stream(QDataStream& stream, const save_game_header_t& header);
@@ -455,6 +452,8 @@ struct game_t {
 	static uint read_game_info(QDataStream& stream, game_t* game);
 	static uint write_game_info(QDataStream& stream, const game_t* game);
 	//uint write_save_point_stream(QDataStream& stream, const game_t* game);
+
+	template<typename T1, typename T2> bool update_achievement_stats(T1& stat_value_ref, const T2& increased_value, achievement_e related_achievement = ACHIEVEMENT_NONE);
 
 	std::function<void(player_e)> game_state_update_callback_fn;
 	std::function<void(game_state_update_e, player_e, int)> game_event_callback_fn;
@@ -465,4 +464,36 @@ struct game_t {
 	std::function<void(interactable_object_t*)> update_interactable_object_callback_fn;
 	std::function<void(hero_t*, skill_e, skill_e, skill_e, stat_e, bool)> show_hero_levelup_callback_fn;
 	std::function<void(dialog_type_e, interactable_object_t*, hero_t*, int, int)> show_dialog_callback_fn;
+	std::function<void(hero_t*, hero_t*, const std::vector<spell_e>&, const std::vector<spell_e>&)> show_spells_exchanged_dialog_callback_fn;
+	std::function<void(achievement_e)> achievement_earned_callback_fn;
 };
+
+
+const std::vector<hero_class_e>& get_all_hero_classes();
+hero_class_e get_random_hero_class(hero_class_e mask = HERO_CLASS_ALL);
+hero_class_e get_random_hero_class(hero_class_e mask, std::mt19937_64& rng);
+resource_e get_random_resource(std::bitset<8> mask = 0xFF);
+resource_e get_random_resource(std::bitset<8> mask, std::mt19937_64& rng);
+
+template<typename T1, typename T2> bool game_t::update_achievement_stats(T1& stat_value_ref, const T2& increased_value, achievement_e related_achievement) {
+	T1 previous_value = stat_value_ref;
+
+	stat_value_ref += increased_value;
+
+	if(related_achievement == ACHIEVEMENT_NONE)
+		return false;
+
+	const auto& adata = game_config::get_achievement(related_achievement);
+	
+	for(const auto& tier : adata.tiers) {
+		if(tier.value == 0)
+			return false;
+
+		if(previous_value < tier.value && stat_value_ref >= tier.value) {
+			achievement_earned_callback_fn(related_achievement);
+			return true;
+		}
+	}
+
+	return false;
+}

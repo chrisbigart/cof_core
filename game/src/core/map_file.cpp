@@ -1,6 +1,7 @@
 #include "core/map_file.h"
 
 #include "core/qt_headers.h"
+#include "core/utils_enum.h"
 
 using utils::get_enum_value;
 using utils::name_from_enum;
@@ -193,7 +194,7 @@ map_error_e read_map_file_stream(QDataStream& stream, adventure_map_t& map, map_
 		stream >> pc.player_number;
 		stream >> pc.color;
 		stream >> pc.team;
-		stream_read_vector(stream, pc.allowed_classes);
+		stream >> pc.allowed_classes;
 		stream >> pc.allowed_player_type;
 	}
 	
@@ -267,7 +268,7 @@ map_error_e read_map_file_stream(QDataStream& stream, adventure_map_t& map, map_
 		}
 
 		//read the base class members from the buffer
-		object_stream >> obj->asset_id >> obj->x >> obj->y >> obj->z >> obj->width >> obj->height;
+		object_stream >> obj->asset_id >> obj->x >> obj->y;
 
 		//read the derived class data
 		obj->read_data(object_stream);
@@ -304,6 +305,16 @@ map_error_e read_map_file_stream(QDataStream& stream, adventure_map_t& map, map_
 			return MAP_DUPLICATE_HERO_ID;
 		
 		map.heroes[hero.id] = hero;
+
+		int player = hero.player;
+		player--;
+		if(player >= 0 && player < map.player_configurations.size()) {
+			if(map.player_configurations[player].starting_hero_id == -1) {
+				map.player_configurations[player].starting_hero_id = hero.id;
+				map.player_configurations[player].is_hero_set_by_map = true;
+			}
+		}
+
 	}	
 	
 	//read magic
@@ -361,7 +372,7 @@ map_error_e write_map_file_stream(QDataStream& stream, const adventure_map_t& ma
 		stream << pc.player_number;
 		stream << pc.color;
 		stream << pc.team;
-		stream_write_vector(stream, pc.allowed_classes);
+		stream << pc.allowed_classes;
 		stream << pc.allowed_player_type;
 	}
 
@@ -398,7 +409,7 @@ map_error_e write_map_file_stream(QDataStream& stream, const adventure_map_t& ma
 		QDataStream object_stream(&buffer);
 
 		//write object data to temporary stream
-		object_stream << obj->asset_id << obj->x << obj->y << obj->z << obj->width << obj->height;
+		object_stream << obj->asset_id << obj->x << obj->y;
 		obj->write_data(object_stream);
 
 		//write size followed by the buffer contents to main stream
@@ -522,18 +533,18 @@ QJsonObject hero_to_json(const hero_t& hero) {
 	heroJson["scripts"] = scriptsArray;
 	
 	QJsonObject appearanceJson;
-	appearanceJson["class_appearance"] = (int)hero.appereance.class_appearance;
-	appearanceJson["body"] = (int)hero.appereance.body;
-	appearanceJson["face"] = (int)hero.appereance.face;
-	appearanceJson["eye_color"] = (int)hero.appereance.eye_color;
-	appearanceJson["beard"] = (int)hero.appereance.beard;
-	appearanceJson["eyebrows"] = (int)hero.appereance.eyebrows;
-	appearanceJson["ears"] = (int)hero.appereance.ears;
-	appearanceJson["skin"] = (int)hero.appereance.skin;
-	appearanceJson["hair"] = (int)hero.appereance.hair;
-	appearanceJson["hair_color"] = (int)hero.appereance.hair_color;
-	appearanceJson["mount_type"] = (int)hero.appereance.mount_type;
-	appearanceJson["pet_type"] = (int)hero.appereance.pet_type;
+	appearanceJson["class_appearance"] = (int)hero.appearance.class_appearance;
+	appearanceJson["body"] = (int)hero.appearance.body;
+	appearanceJson["face"] = (int)hero.appearance.face;
+	appearanceJson["eye_color"] = (int)hero.appearance.eye_color;
+	appearanceJson["beard"] = (int)hero.appearance.beard;
+	appearanceJson["eyebrows"] = (int)hero.appearance.eyebrows;
+	appearanceJson["ears"] = (int)hero.appearance.ears;
+	appearanceJson["skin"] = (int)hero.appearance.skin;
+	appearanceJson["hair"] = (int)hero.appearance.hair;
+	appearanceJson["hair_color"] = (int)hero.appearance.hair_color;
+	appearanceJson["mount_type"] = (int)hero.appearance.mount_type;
+	appearanceJson["pet_type"] = (int)hero.appearance.pet_type;
 
 	heroJson["appearance"] = appearanceJson;
 
@@ -643,18 +654,18 @@ hero_t json_to_hero(const QJsonObject& heroJson) {
 	
 	if(heroJson.contains("appearance")) {
 		QJsonObject appearanceJson = heroJson["appearance"].toObject();
-		hero.appereance.class_appearance = (hero_class_appearance_e)appearanceJson["class_appearance"].toInt();
-		hero.appereance.body = (hero_body_appearance_e)appearanceJson["body"].toInt();
-		hero.appereance.face = (hero_face_appearance_e)appearanceJson["face"].toInt();
-		hero.appereance.eye_color = (hero_eyes_appearance_e)appearanceJson["eye_color"].toInt();
-		hero.appereance.beard = (hero_beard_appearance_e)appearanceJson["beard"].toInt();
-		hero.appereance.eyebrows = (hero_eyebrow_appearance_e)appearanceJson["eyebrows"].toInt();
-		hero.appereance.ears = (hero_ears_appearance_e)appearanceJson["ears"].toInt();
-		hero.appereance.skin = (hero_skin_appearance_e)appearanceJson["skin"].toInt();
-		hero.appereance.hair = (hero_hair_appearance_e)appearanceJson["hair"].toInt();
-		hero.appereance.hair_color = (hero_hair_color_appearance_e)appearanceJson["hair_color"].toInt();
-		hero.appereance.mount_type = (hero_mount_type_e)appearanceJson["mount_type"].toInt();
-		hero.appereance.pet_type = (hero_pet_type_e)appearanceJson["pet_type"].toInt();
+		hero.appearance.class_appearance = (hero_class_appearance_e)appearanceJson["class_appearance"].toInt();
+		hero.appearance.body = (hero_body_appearance_e)appearanceJson["body"].toInt();
+		hero.appearance.face = (hero_face_appearance_e)appearanceJson["face"].toInt();
+		hero.appearance.eye_color = (hero_eyes_appearance_e)appearanceJson["eye_color"].toInt();
+		hero.appearance.beard = (hero_beard_appearance_e)appearanceJson["beard"].toInt();
+		hero.appearance.eyebrows = (hero_eyebrow_appearance_e)appearanceJson["eyebrows"].toInt();
+		hero.appearance.ears = (hero_ears_appearance_e)appearanceJson["ears"].toInt();
+		hero.appearance.skin = (hero_skin_appearance_e)appearanceJson["skin"].toInt();
+		hero.appearance.hair = (hero_hair_appearance_e)appearanceJson["hair"].toInt();
+		hero.appearance.hair_color = (hero_hair_color_appearance_e)appearanceJson["hair_color"].toInt();
+		hero.appearance.mount_type = (hero_mount_type_e)appearanceJson["mount_type"].toInt();
+		hero.appearance.pet_type = (hero_pet_type_e)appearanceJson["pet_type"].toInt();
 	}
 
 	// QJsonArray visitedObjectsArray = heroJson["visited_objects"].toArray();
@@ -707,12 +718,12 @@ map_error_e read_map_file_json(const std::string& filepath, adventure_map_t& map
 				pc.team = pcObj["team"].toInt();
 				pc.is_human = pcObj["is_human"].toBool();
 				pc.player_name = pcObj["player_name"].toString().toStdString();
-				pc.selected_class = pcObj["selected_class"].toInt();
+				pc.selected_class = get_enum_value<hero_class_e>(pcObj["selected_class"].toString());
 				
-				pc.allowed_classes.clear();
+				pc.allowed_classes = HERO_CLASS_ALL;
 				QJsonArray allowedClassesArray = pcObj["allowed_classes"].toArray();
 				for (const auto& clsValue : allowedClassesArray) {
-					pc.allowed_classes.push_back(get_enum_value<hero_class_e>(clsValue.toString()));
+					pc.allowed_classes = (hero_class_e)((uint16_t)pc.allowed_classes | (uint16_t)get_enum_value<hero_class_e>(clsValue.toString()));
 				}
 				
 				pc.allowed_player_type = get_enum_value<player_type_e>(pcObj["allowed_player_type"].toString());
@@ -778,9 +789,6 @@ map_error_e read_map_file_json(const std::string& filepath, adventure_map_t& map
 			obj->asset_id = objJson["asset_id"].toInt();
 			obj->x = objJson["x"].toInt();
 			obj->y = objJson["y"].toInt();
-			obj->z = objJson["z"].toInt();
-			obj->width = objJson["width"].toInt();
-			obj->height = objJson["height"].toInt();
 			
 			obj->read_data_json(objJson["data"].toObject());
 			
@@ -828,11 +836,14 @@ map_error_e write_map_file_json(const std::string& path, const adventure_map_t& 
 		pcObj["team"] = static_cast<int>(pc.team);
 		pcObj["is_human"] = pc.is_human;
 		pcObj["player_name"] = QString::fromStdString(pc.player_name).toStdString().c_str();
-		pcObj["selected_class"] = pc.selected_class;
+		pcObj["selected_class"] = name_from_enum(pc.selected_class);
 		
 		QJsonArray allowedClasses;
-		for (auto& cls : pc.allowed_classes) {
-			allowedClasses.append(name_from_enum(cls));
+		
+		auto mask = (uint16_t)pc.allowed_classes;
+		for(uint16_t bit = 1; bit < 0x8000; bit <<= 1) {
+			if(mask & bit)
+				allowedClasses.append(name_from_enum((hero_class_e)bit));
 		}
 		pcObj["allowed_classes"] = allowedClasses;
 		
@@ -885,9 +896,6 @@ map_error_e write_map_file_json(const std::string& path, const adventure_map_t& 
 		objJson["asset_id"] = obj->asset_id;
 		objJson["x"] = obj->x;
 		objJson["y"] = obj->y;
-		objJson["z"] = obj->z;
-		objJson["width"] = obj->width;
-		objJson["height"] = obj->height;
 		objJson["data"] = obj->write_data_json();
 		
 		objectsArray.append(objJson);

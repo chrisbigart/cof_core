@@ -1,6 +1,6 @@
-#include "rl/combat_training.h"
+#include "combat_training.h"
 
-#include "rl/combat_observation.h"
+#include "combat_observation.h"
 
 #include <algorithm>
 #include <limits>
@@ -10,9 +10,6 @@
 
 #include <torch/nn/utils/clip_grad.h>
 #include <torch/serialize.h>
-
-namespace rl {
-namespace combat {
 
 double epsilon_schedule_t::value(std::size_t step) const {
         if(step >= decay_steps)
@@ -76,6 +73,108 @@ combat_action_type_t discrete_action_space_t::to_native(std::size_t index) const
         return actions[index];
 }
 
+std::string unit_summary(const battlefield_unit_t& unit) {
+    if(unit.unit_type == UNIT_UNKNOWN || unit.stack_size == 0)
+        return "None";
+
+    std::ostringstream stream;
+    stream << "#" << magic_enum::enum_name(unit.unit_type) << " x" << unit.stack_size;
+    stream << (unit.is_attacker ? " (attacker)" : " (defender)");
+    return stream.str();
+}
+
+void print_targets(const std::vector<battle_action_t::target_t>& targets) {
+    for(std::size_t target_index = 0; target_index < targets.size(); ++target_index)
+    {
+        const auto& target = targets[target_index];
+        std::cout << "      target[" << target_index << "] " << unit_summary(target.target_unit)
+            << " dmg=" << target.damage << " kills=" << target.kills;
+        if(target.was_fatal)
+            std::cout << " fatal";
+        if(target.is_healing)
+            std::cout << " healing";
+        std::cout << "\n";
+    }
+}
+
+void print_battle_log(const std::vector<battle_action_t>& actions) {
+    if(actions.empty())
+    {
+        std::cout << "  <no combat actions recorded>\n";
+        return;
+    }
+
+    for(std::size_t index = 0; index < actions.size(); ++index)
+    {
+        const auto& action = actions[index];
+        std::cout << "  [" << index << "] " << magic_enum::enum_name(action.action);
+
+        const auto actor = unit_summary(action.acting_unit);
+        if(actor != "None")
+            std::cout << " actor=" << actor;
+
+        if(action.spell_id != SPELL_UNKNOWN)
+            std::cout << " spell=" << static_cast<int>(action.spell_id);
+        if(action.buff_id != BUFF_NONE)
+            std::cout << " buff=" << static_cast<int>(action.buff_id);
+        if(action.applicable_talent != TALENT_NONE)
+            std::cout << " talent=" << static_cast<int>(action.applicable_talent);
+        if(action.applicable_artifact != ARTIFACT_NONE)
+            std::cout << " artifact=" << static_cast<int>(action.applicable_artifact);
+        if(action.affected_wall_section != CASTLE_WALL_SECTION_NONE)
+            std::cout << " wall=" << static_cast<int>(action.affected_wall_section);
+        if(action.effect_value != 0)
+            std::cout << " effect=" << action.effect_value;
+
+        if(!action.affected_units.empty())
+        {
+            std::cout << "\n";
+            print_targets(action.affected_units);
+        }
+        else
+        {
+            std::cout << "\n";
+        }
+    }
+}
+
+constexpr std::size_t EPISODE_LOG_INTERVAL = 1'000;
+
+extern double compute_mean(const std::vector<float>& values);
+extern double compute_stddev(const std::vector<float>& values, double mean);
+
+void report_progress(std::size_t episode_count,
+                     const training_metrics_t& metrics,
+                     const std::vector<battle_action_t>& last_actions) {
+    std::cout << "\n=== Training progress after " << episode_count << " episodes ===\n";
+    std::cout << "Completed " << episode_count << " episodes / " << metrics.total_steps << " environment steps\n";
+
+    if(!metrics.episode_rewards.empty())
+    {
+        const double mean = compute_mean(metrics.episode_rewards);
+        const double stddev = compute_stddev(metrics.episode_rewards, mean);
+        std::cout << std::fixed << std::setprecision(3)
+            << "Episode reward: mean=" << mean << " std=" << stddev << "\n";
+    }
+
+    if(!metrics.losses.empty())
+    {
+        const double mean_loss = compute_mean(metrics.losses);
+        std::cout << std::fixed << std::setprecision(6) << "Average loss: " << mean_loss << "\n";
+    }
+
+    if(!metrics.epsilon_values.empty())
+    {
+        std::cout << std::fixed << std::setprecision(3)
+            << "Epsilon schedule: start=" << metrics.epsilon_values.front()
+            << " current=" << metrics.epsilon_values.back() << "\n";
+    }
+
+    std::cout << "Previous battle actions:" << "\n";
+    print_battle_log(last_actions);
+    std::cout << std::flush;
+}
+
 dqn_trainer_t::dqn_trainer_t(combat_environment_t& environment,
                              combat_agent_t& policy_agent,
                              combat_agent_t& target_agent,
@@ -105,12 +204,12 @@ dqn_trainer_t::dqn_trainer_t(combat_environment_t& environment,
         if(this->config.target_update_frequency == 0)
                 throw std::invalid_argument("Target update frequency must be positive");
 
-        this->policy_agent->policy()->train();
-        this->target_agent->policy()->eval();
+        this->policy_agent->model()->train();
+        this->target_agent->model()->eval();
 
         optimizer = std::make_unique<torch::optim::Adam>(
-                this->policy_agent->policy()->parameters(),
-                torch::optim::AdamOptions(this->config.learning_rate));
+            this->policy_agent->model()->parameters(),
+            torch::optim::AdamOptions(this->config.learning_rate));
 
         update_target_network();
 }
@@ -130,6 +229,10 @@ training_metrics_t dqn_trainer_t::train(std::size_t episodes) {
 
                 bool terminated = false;
                 std::size_t steps = 0;
+
+                if((episode + 1) % EPISODE_LOG_INTERVAL == 0)
+                    environment->record_actions = true;
+                
 
                 while(!terminated) {
                         auto legal_mask = compute_legal_mask(observation);
@@ -183,6 +286,11 @@ training_metrics_t dqn_trainer_t::train(std::size_t episodes) {
                 metrics.epsilon_values.push_back(epsilon);
                 metrics.losses.insert(metrics.losses.end(), episode_losses.begin(), episode_losses.end());
                 metrics.total_steps = global_step;
+
+                if((episode + 1) % EPISODE_LOG_INTERVAL == 0) {
+                    report_progress(episode + 1, metrics, environment->action_history);
+                    environment->record_actions = false;
+                }
         }
 
         return metrics;
@@ -210,11 +318,11 @@ int64_t dqn_trainer_t::select_action(const torch::Tensor& state,
                 return sample_random_action(legal_mask);
 
         torch::NoGradGuard guard;
-        policy_agent->policy()->eval();
-        auto q_values = policy_agent->policy()->forward(state.unsqueeze(0)).squeeze(0);
+        policy_agent->model()->eval();
+        auto q_values = policy_agent->model()->forward(state.unsqueeze(0)).squeeze(0);
         q_values = apply_legal_mask(q_values, legal_mask);
         const int64_t action_index = q_values.argmax().item<int64_t>();
-        policy_agent->policy()->train();
+        policy_agent->model()->train();
         return action_index;
 }
 
@@ -312,16 +420,16 @@ std::optional<float> dqn_trainer_t::optimise_model() {
         auto next_states = torch::stack(next_state_batch);
         auto dones = torch::tensor(done_batch, torch::TensorOptions().dtype(torch::kFloat32).device(device));
 
-        auto q_values = policy_agent->policy()->forward(states);
+        auto q_values = policy_agent->model()->forward(states);
         auto action_q = q_values.gather(1, actions.unsqueeze(1)).squeeze(1);
 
         torch::Tensor targets;
         {
-                torch::NoGradGuard guard;
-                auto next_q_values = target_agent->policy()->forward(next_states);
-                next_q_values = apply_legal_mask_batch(next_q_values, next_masks);
-                auto max_next_q = std::get<0>(next_q_values.max(1));
-                targets = rewards + config.discount * (1.0F - dones) * max_next_q;
+            torch::NoGradGuard guard;
+            auto next_q_values = target_agent->model()->forward(next_states);
+            next_q_values = apply_legal_mask_batch(next_q_values, next_masks);
+            auto max_next_q = std::get<0>(next_q_values.max(1));
+            targets = rewards + config.discount * (1.0F - dones) * max_next_q;
         }
 
         auto loss = torch::nn::MSELoss()(action_q, targets);
@@ -330,7 +438,7 @@ std::optional<float> dqn_trainer_t::optimise_model() {
         loss.backward();
 
         if(config.gradient_clip_norm)
-                torch::nn::utils::clip_grad_norm_(policy_agent->policy()->parameters(), *config.gradient_clip_norm);
+                torch::nn::utils::clip_grad_norm_(policy_agent->model()->parameters(), *config.gradient_clip_norm);
 
         optimizer->step();
 
@@ -340,16 +448,13 @@ std::optional<float> dqn_trainer_t::optimise_model() {
 void dqn_trainer_t::update_target_network() {
         torch::NoGradGuard guard;
         torch::serialize::OutputArchive archive;
-        policy_agent->policy()->save(archive);
+        policy_agent->model()->save(archive);
         std::stringstream stream;
         archive.save_to(stream);
 
         torch::serialize::InputArchive input;
         input.load_from(stream);
-        target_agent->policy()->load(input);
-        target_agent->policy()->eval();
+        target_agent->model()->load(input);
+        target_agent->model()->eval();
 }
-
-} // namespace combat
-} // namespace rl
 

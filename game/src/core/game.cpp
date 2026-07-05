@@ -2,6 +2,7 @@
 #include "core/map_file.h"
 #include "core/adventure_map.h"
 #include "core/utils.h"
+#include "core/achievements.h"
 
 #include <random>
 #include <chrono>
@@ -46,6 +47,13 @@ QDataStream& operator>>(QDataStream& stream, resource_group_t& resource) {
 	return stream;
 }
 
+resource_group_t operator+(const resource_group_t& a, const resource_group_t& b) {
+	resource_group_t out = a;
+	for(int i = 0; i < b.values.size(); i++)
+		out.values[i].value += b.values[i].value;
+
+	return out;
+}
 
 QDataStream& operator<<(QDataStream& stream, const resource_value_t& resource) {
 	stream << resource.type;
@@ -62,7 +70,7 @@ QDataStream& operator>>(QDataStream& stream, resource_value_t& resource) {
 }
 
 bool resource_valid(resource_e resource_type) {
-	return magic_enum::enum_contains(resource_type);
+	return (resource_type == RESOURCE_GOLD) || is_basic_resource(resource_type) || is_magic_resource(resource_type);
 }
 
 bool is_magic_resource(resource_e resource_type) {
@@ -74,6 +82,37 @@ bool is_magic_resource(resource_e resource_type) {
 
 bool is_basic_resource(resource_e resource_type) {
 	return (resource_type == RESOURCE_WOOD || resource_type == RESOURCE_ORE);
+}
+achievement_e get_achievement_for_mines(const resource_group_t& res_group) {
+	for(const auto& v : res_group.values) {
+		switch(v.type) {
+			case RESOURCE_ORE:      return ACHIEVEMENT_ORESON_WELLS;
+			case RESOURCE_WOOD:     return ACHIEVEMENT_WOODY_HARRELSON;
+			case RESOURCE_GEMS:     return ACHIEVEMENT_GEM_CARREY;
+			case RESOURCE_MERCURY:  return ACHIEVEMENT_FREDDIE_MERCURY;
+			case RESOURCE_CRYSTALS: return ACHIEVEMENT_BILLY_CRYSTAL;
+			case RESOURCE_GOLD:     return ACHIEVEMENT_JEFF_GOLDBLUM;
+			default: break;
+		}
+	}
+
+	return ACHIEVEMENT_NONE;
+}
+
+achievement_e get_achievement_for_resources(const resource_group_t& res_group) {
+	for(const auto& v : res_group.values) {
+		switch(v.type) {
+			case RESOURCE_GOLD:     return ACHIEVEMENT_MONEY_ON_MY_MIND;
+			case RESOURCE_GEMS:     return ACHIEVEMENT_SHINE_BRIGHT_LIKE_A_DIAMOND;
+			case RESOURCE_MERCURY:  return ACHIEVEMENT_ITS_LIKE_WORKING_WITH_MERCURY;
+			case RESOURCE_CRYSTALS: return ACHIEVEMENT_CRYSTAL_CLEAR;
+			case RESOURCE_WOOD:     return ACHIEVEMENT_TIMBER;
+			case RESOURCE_ORE:      return ACHIEVEMENT_OREIGINAL_RECIPE;
+			default: break;
+		}
+	}
+
+	return ACHIEVEMENT_NONE;
 }
 
 void game_t::check_for_game_status_updates() {
@@ -223,6 +262,8 @@ bool game_t::is_tile_observable(int x, int y, player_e player) const {
 	if(!map.tile_valid(x, y) || !player_valid(player))
 		return false;
 
+	return true;
+	//fixme: observability temporarily disabled
 	const auto& observability = get_player(player).tile_observability;
 	int offset = x + y * map.width;
 	if(offset >= observability.size())
@@ -244,9 +285,9 @@ void game_t::update_visibility() {
 	}
 }
 
-void game_t::reveal_area(player_e player, int x, int y, int reveal_radius, int observe_radius) {
+int game_t::reveal_area(player_e player, int x, int y, int reveal_radius, int observe_radius) {
 	if(!player_valid(player))
-		return;
+		return 0;
 	
 	auto& tile_visibility = get_player(player).tile_visibility;
 	auto& tile_observability = get_player(player).tile_observability;
@@ -254,6 +295,8 @@ void game_t::reveal_area(player_e player, int x, int y, int reveal_radius, int o
 	if(observe_radius < reveal_radius)
 		observe_radius = reveal_radius;
 	
+	int revealed_tiles = 0;
+
 	for(int ypos = y - (observe_radius + 1); ypos < y + (observe_radius + 1); ypos++) {
 		for(int xpos = x - (observe_radius + 1); xpos < x + (observe_radius + 1); xpos++) {
 			if(!map.tile_valid(xpos, ypos))
@@ -265,13 +308,23 @@ void game_t::reveal_area(player_e player, int x, int y, int reveal_radius, int o
 			if(!observed)
 				continue;
 			
-			if(revealed)
-				tile_visibility.setBit(xpos + ypos*map.width, true);
+			auto offset = xpos + ypos * map.width;
+
+			if(revealed) {
+				if(!tile_visibility.testBit(offset))
+					revealed_tiles++;
+
+				tile_visibility.setBit(offset, true);
+			}
 			
-			if(tile_visibility.testBit(xpos + ypos*map.width))
-				tile_observability.setBit(xpos + ypos*map.width, true);
+			if(tile_visibility.testBit(offset))
+				tile_observability.setBit(offset, true);
 		}
 	}
+
+	update_achievement_stats(get_player(player).player_stats.exploration.fog_tiles_revealed, revealed_tiles, ACHIEVEMENT_REVEALING_THE_UNKNOWN);
+
+	return revealed_tiles;
 }
 
 player_configuration_t dummy_configuration;
@@ -385,6 +438,10 @@ bool game_t::trade_resources_via_marketplace(player_e player_number, resource_e 
 	if(!resource_valid(resource_type_to_trade) || !resource_valid(resource_type_to_receive))
 		return false;
 	
+	//makes no sense to trade a resource for itself
+	if(resource_type_to_trade == resource_type_to_receive)
+		return false;
+
 	if(quantity_to_trade > MAX_RESOURCE_VALUE)
 		return false;
 	
@@ -481,31 +538,27 @@ void game_t::update_visibility(player_e player) {
 				continue;
 			
 			//calculate front-door tile:
-			auto pos = map.get_interactable_coordinate_for_object(t);
-			reveal_area(player, pos.x, pos.y, t->reveal_area, t->observation_area);
+			reveal_area(player, obj->x, obj->y, t->reveal_area, t->observation_area);
 		}
 		else if(obj->object_type == OBJECT_MINE) {
 			auto mine = (mine_t*)obj;
 			if(!are_players_allied(mine->owner, player))
 				continue;
 			
-			auto pos = map.get_interactable_coordinate_for_object(mine);
-			reveal_area(player, pos.x, pos.y, 3, 5);
+			reveal_area(player, obj->x, obj->y, 3, 5);
 		}
 		else if(obj->object_type == OBJECT_WINDMILL || obj->object_type == OBJECT_WATERWHEEL) { //flaggable objects
 			auto flaggable = (flaggable_object_t*)obj;
 			if(!are_players_allied(flaggable->owner, player))
 				continue;
 			
-			auto pos = map.get_interactable_coordinate_for_object(flaggable);
-			reveal_area(player, pos.x, pos.y, 3, 4);
+			reveal_area(player, obj->x, obj->y, 3, 4);
 		}
 		else if(obj->object_type == OBJECT_WATCHTOWER) {
 			auto tower = (flaggable_object_t*)obj;
 			if(tower->visited && are_players_allied(tower->owner, player)) {
-				auto pos = map.get_interactable_coordinate_for_object(tower);
 				auto date_diff = date - tower->date_visited;
-				reveal_area(player, pos.x, pos.y, 3, std::clamp(20 - date_diff, 3, 20));
+				reveal_area(player, obj->x, obj->y, 3, std::clamp(20 - date_diff, 3, 20));
 			}
 		}
 	}	
@@ -593,7 +646,7 @@ void game_t::next_week() {
 		else if(obj->object_type == OBJECT_WINDMILL) {
 			auto mill = (flaggable_object_t*)obj;
 			//bool visited = 0;
-			auto resource = (resource_e)(utils::rand_range(2, 6));
+			auto resource = (resource_e)(utils::rand_range(2, 7));
 			auto quantity = utils::rand_range(3, 7);
 			
 			mill->visited |= (resource << 4);
@@ -641,14 +694,26 @@ void game_t::next_day() {
 				value = 2;
 			
 			income.set_value_for_type(res, value);
-			if(player != PLAYER_NONE && player != PLAYER_NEUTRAL)
-				get_player(player).resources += income;
+			if(player != PLAYER_NONE && player != PLAYER_NEUTRAL) {
+				auto& pl = get_player(player);
+				pl.resources += income;
+				//update_achievement_stats(pl.player_stats.resources.total_resources_from_mines, income, get_achievement_for_mines(income));
+			}
 			
 		}
 	}
     for(auto& h : map.heroes) {
 		auto& hero = h.second;
 		hero.new_day(date, map.get_tile(hero.x, hero.y).terrain_type);
+
+		//reset the visited status for certain objects that can be visited each day (e.g. wells)
+		for(auto it = hero.visited_objects.begin(); it != hero.visited_objects.end();) {
+			auto obj = map.get_object_by_id(*it);
+			if(obj && obj->object_type == OBJECT_WELL)
+				it = hero.visited_objects.erase(it);
+			else
+				++it;
+		}
 		
 		if(hero.has_talent(TALENT_FIEFDOM) && player_valid(hero.player)) {
 			get_player(hero.player).resources += resource_group_t(0, 0, 0, 0, 0, 0, 100 * hero.level);
@@ -788,38 +853,83 @@ void game_t::apply_battle_necromancy_results(hero_t* hero) {
 }
 
 bool game_t::battle_retreat() {
+	auto player = battle.get_player_of_active_unit();
+	if(battle.defending_monster && battle.attacking_hero->player == player) {
+		battle.result = BATTLE_ATTACKER_HAS_FLED;
+		return true;
+	}
+	else if(battle.defending_town) {
+		battle.result = BATTLE_ATTACKER_HAS_FLED;
+		return true;
+	}
+	else if(battle.attacking_hero && battle.defending_hero) { //
+		if(battle.attacking_hero->player == player)
+			battle.result = BATTLE_ATTACKER_HAS_FLED;
+		else if(battle.defending_hero->player == player)
+			battle.result = BATTLE_DEFENDER_HAS_FLED;
+
+		return true;
+	}
+
 	return false;
 }
 
 void game_t::accept_battle_results() {
-	if(battle.result == BATTLE_DEFENDER_VICTORY || battle.result == BATTLE_BOTH_LOSE) {
+	if(battle.result == BATTLE_DEFENDER_VICTORY || battle.result == BATTLE_BOTH_LOSE || battle.result == BATTLE_ATTACKER_HAS_FLED) {
 		if(battle.defending_monster) {
 			uint16_t remaining = 0;
 			for(auto& tr : battle.get_remaining_troops_defender())
 				remaining += tr.stack_size;
 			
 			battle.defending_monster->quantity = remaining;
+
+			if(battle.result == BATTLE_ATTACKER_HAS_FLED) {
+				battle.attacking_hero->troops = battle.get_remaining_troops_attacker();
+				//issue here - when we have multiple heroes retreat, we need to keep the old ones
+				//need to keep a list of heroes that have retreated in the game state
+				auto& slot_ref = get_player(battle.attacking_hero->player).heroes_available_to_recruit[0];
+				slot_ref = *battle.attacking_hero; //copy
+				slot_ref.player = PLAYER_NONE;
+				slot_ref.init_army();
+			}
+
 			remove_hero_callback_fn(battle.attacking_hero, true);
 			map.remove_hero(battle.attacking_hero);
 		}
 		else if(battle.defending_hero) {
 			battle.defending_hero->troops = battle.get_remaining_troops_defender();
 			give_hero_xp(battle.defending_hero, battle.get_winning_hero_xp());
-
-			for(const auto& art : battle.captured_artifacts)
-				battle.defending_hero->pickup_artifact(art);
+			
+			if(battle.result == BATTLE_ATTACKER_HAS_FLED) {
+				battle.attacking_hero->troops = battle.get_remaining_troops_attacker();
+				//issue - see above
+				get_player(battle.attacking_hero->player).heroes_available_to_recruit[0] = *battle.attacking_hero; //copy
+				get_player(battle.attacking_hero->player).heroes_available_to_recruit[0].player = PLAYER_NONE;
+			}
+			else {
+				for(const auto& art : battle.captured_artifacts)
+					battle.defending_hero->pickup_artifact(art);
+			}
 			
 			remove_hero_callback_fn(battle.attacking_hero, true);
 			map.remove_hero(battle.attacking_hero);
 		}
 	}
-	else if(battle.result == BATTLE_ATTACKER_VICTORY) {
+	else if(battle.result == BATTLE_ATTACKER_VICTORY || battle.result == BATTLE_DEFENDER_HAS_FLED) {
 		battle.attacking_hero->troops = battle.get_remaining_troops_attacker();
 		give_hero_xp(battle.attacking_hero, battle.get_winning_hero_xp());
 
-		for(const auto& art : battle.captured_artifacts)
-			battle.attacking_hero->pickup_artifact(art);
-
+		if(battle.result == BATTLE_DEFENDER_HAS_FLED) {
+				battle.defending_hero->troops = battle.get_remaining_troops_defender();
+				//issue, see above
+				get_player(battle.defending_hero->player).heroes_available_to_recruit[0] = *battle.defending_hero; //copy
+				get_player(battle.defending_hero->player).heroes_available_to_recruit[0].player = PLAYER_NONE;
+			}
+		else {
+			for(const auto& art : battle.captured_artifacts)
+				battle.attacking_hero->pickup_artifact(art);
+		}
+		
 		if(battle.attacking_hero->get_secondary_skill_level(SKILL_NECROMANCY))
 			apply_battle_necromancy_results(battle.attacking_hero);
 
@@ -886,7 +996,61 @@ map_action_e game_t::interact_with_object(hero_t* hero, interactable_object_t* o
 	if(!hero || !object)
 		return MAP_ACTION_NONE;
 	
-	if(object->object_type == OBJECT_WARRIORS_TOMB) {
+	if(object->object_type == OBJECT_WAGON) {
+		auto wagon = (wagon_t*)object;
+		bool was_backpack_full = false;
+		switch(wagon->reward_type) {
+			case wagon_t::WAGON_REWARD_GOLD: {
+				resource_group_t res;
+				res.set_value_for_type(RESOURCE_GOLD, wagon->gold_resource_value * 100);
+				get_player(hero->player).resources += res;
+				break;
+			}
+			case wagon_t::WAGON_REWARD_RESOURCE: {
+				resource_group_t res;
+				res.set_value_for_type(wagon->resource_type, wagon->gold_resource_value);
+				get_player(hero->player).resources += res;
+				break;
+			}
+			case wagon_t::WAGON_REWARD_ARTIFACT: {
+				was_backpack_full = !(hero->pickup_artifact(wagon->artifact_id));
+				break;
+			}
+		}
+
+		show_dialog_callback_fn(DIALOG_TYPE_WAGON_VISIT, object, hero, wagon->reward_type, was_backpack_full);
+		if(!was_backpack_full) {
+			wagon->reward_type = wagon_t::WAGON_REWARD_EMPTY;
+			map.set_object_visited_by_player(wagon, hero->player);
+		}
+
+		return MAP_ACTION_NONE;
+	}
+	else if(object->object_type == OBJECT_SIGN) {
+		auto sign = (sign_t*)object;
+		bool was_visited = sign->visited.test(hero->player);
+		sign->visited.set(hero->player, 1);
+		if(!was_visited)
+			update_achievement_stats(get_player(hero->player).player_stats.exploration.signs_visited, 1);
+
+		show_dialog_callback_fn(DIALOG_TYPE_SIGN, object, hero, 0, 0);
+		return MAP_ACTION_NONE;
+	}
+	else if(object->object_type == OBJECT_WATCHTOWER) {
+		show_dialog_callback_fn(DIALOG_TYPE_WATCHTOWER, object, hero, 0, 0);
+		return MAP_ACTION_NONE;
+	}
+	else if(object->object_type == OBJECT_KEYMASTER_TENT) {
+		auto tent = (keymaster_tent_t*)object;
+		bool has_key = get_player(hero->player).keys_found.test(tent->color);
+		show_dialog_callback_fn(DIALOG_TYPE_KEYMASTER_TENT, object, hero, has_key, tent->color);
+		get_player(hero->player).keys_found.set(tent->color, 1);
+		if(!has_key)
+			update_achievement_stats(get_player(hero->player).player_stats.exploration.keymaster_tents_visited, 1, ACHIEVEMENT_KEY_TO_VICTORY);
+
+		return MAP_ACTION_NONE;
+	}
+	else if(object->object_type == OBJECT_WARRIORS_TOMB) {
 		show_dialog_callback_fn(DIALOG_TYPE_WARRIORS_TOMB_CHOICE, object, hero, 0, 0);
 		return MAP_ACTION_NONE;
 	}
@@ -899,18 +1063,17 @@ map_action_e game_t::interact_with_object(hero_t* hero, interactable_object_t* o
 		return MAP_ACTION_NONE;
 	}
 	else if(object->object_type == OBJECT_STANDING_STONES) {
-		bool can_take = !hero->has_object_been_visited(object) && hero->power < 99;
+		bool can_take = !hero->has_object_been_visited(map.get_object_id(object)) && hero->power < 99;
 		if(can_take) {
 			hero->increase_power(1);
-			hero->set_visited_object(object);
+			hero->set_visited_object(map.get_object_id(object));
 		}
 
 		show_dialog_callback_fn(DIALOG_TYPE_STANDING_STONES, object, hero, can_take ? 1 : 0, 0);
 		return MAP_ACTION_NONE;
 	}
 	else if(object->object_type == OBJECT_MAGIC_SHRINE) {
-		auto shrine = (shrine_t*)object;
-		shrine->set_visited_by_player(hero->player);
+		map.set_object_visited_by_player((shrine_t*)object, hero->player);
 		show_dialog_callback_fn(DIALOG_TYPE_MAGIC_SHRINE_VISIT, object, hero, 0, 0);
 		return MAP_ACTION_NONE;
 	}
@@ -937,8 +1100,9 @@ map_action_e game_t::interact_with_object(hero_t* hero, interactable_object_t* o
 	else if(object->object_type == OBJECT_WITCH_HUT) {
 		auto hut = (witch_hut_t*)object;
 		const auto& skill = game_config::get_skill(hut->skill);
+		map.set_object_visited_by_player(hut, hero->player);
 
-		if(hero->has_object_been_visited(object)) { //hero has already taken a skill/upgrade from this hut
+		if(hero->has_object_been_visited(map.get_object_id(object))) { //hero has already taken a skill/upgrade from this hut
 			show_dialog_callback_fn(DIALOG_TYPE_WITCH_HUT_CHOICE, object, hero, WITCH_HUT_VISIT_RESULT_ALREADY_VISITED, 0);
 			return MAP_ACTION_NONE;
 		}
@@ -1003,6 +1167,9 @@ map_action_e game_t::interact_with_object(hero_t* hero, interactable_object_t* o
 		if(mine->owner != hero->player) { //fixme for allied players
 			mine->owner = hero->player;
 			show_dialog_callback_fn(DIALOG_TYPE_MINE, object, hero, 0, 0);
+
+			update_achievement_stats(get_player(hero->player).player_stats.total_mines_flagged, 1, ACHIEVEMENT_MINE_OVER_MATTER);
+
 			return MAP_ACTION_OBJECT_UPDATED;
 		}
 		return MAP_ACTION_NONE;
@@ -1040,10 +1207,9 @@ map_action_e game_t::interact_with_object(hero_t* hero, interactable_object_t* o
 				continue;
 				
 			//check to see if destination is occupied or not
-			auto dest_tile = map.get_interactable_coordinate_for_object(dst);
 			bool occupied = false;
 			for(auto& h : map.heroes) {
-				if(h.second.x == dest_tile.x && h.second.y == dest_tile.y)
+				if(h.second.x == dst->x && h.second.y == dst->y)
 					occupied = true;
 			}
 				
@@ -1057,9 +1223,8 @@ map_action_e game_t::interact_with_object(hero_t* hero, interactable_object_t* o
 			return MAP_ACTION_NONE;
 
 		auto dest = destinations.at(rand() % destinations.size());
-		auto teleport_dest_tile = map.get_interactable_coordinate_for_object(dest);
-		hero->x = teleport_dest_tile.x;
-		hero->y = teleport_dest_tile.y;
+		hero->x = dest->x;
+		hero->y = dest->y;
 		
 		return MAP_ACTION_HERO_TELEPORTED;
 		}
@@ -1070,10 +1235,9 @@ map_action_e game_t::interact_with_object(hero_t* hero, interactable_object_t* o
 				continue;
 	
 			//check to see if destination is occupied or not
-			auto dest_tile = map.get_interactable_coordinate_for_object(o);
 			bool occupied = false;
 			for(auto& h : map.heroes) {
-				if(h.second.x == dest_tile.x && h.second.y == dest_tile.y)
+				if(h.second.x == o->x && h.second.y == o->y)
 					occupied = true;
 			}
 				
@@ -1087,22 +1251,21 @@ map_action_e game_t::interact_with_object(hero_t* hero, interactable_object_t* o
 			return MAP_ACTION_NONE;
 
 		auto dest = destinations.at(rand() % destinations.size());
-		auto teleport_dest_tile = map.get_interactable_coordinate_for_object(dest);
-		hero->x = teleport_dest_tile.x;
-		hero->y = teleport_dest_tile.y;
+		hero->x = dest->x;
+		hero->y = dest->y;
 		
 		return MAP_ACTION_HERO_TELEPORTED;
 	}
 	else if(object->object_type == OBJECT_WELL) {
-		if(hero->has_object_been_visited(object)) {
+		if(hero->has_object_been_visited(map.get_object_id(object))) {
 			show_dialog_callback_fn(DIALOG_TYPE_WELL, object, hero, WELL_VISIT_RESULT_ALREADY_VISITED, 0);
 			return MAP_ACTION_NONE;
 		}
-		else if(hero->hero_class == HERO_BARBARIAN) {
+		else if(hero->hero_class == HERO_CLASS_BARBARIAN) {
 			int mp = 300;
 			hero->movement_points += mp;
 			show_dialog_callback_fn(DIALOG_TYPE_WELL, object, hero, WELL_VISIT_RESULT_BARBARIAN_MOVEMENT, mp);
-			hero->set_visited_object(object);
+			hero->set_visited_object(map.get_object_id(object));
 			return MAP_ACTION_NONE;
 		}
 		else {
@@ -1113,14 +1276,14 @@ map_action_e game_t::interact_with_object(hero_t* hero, interactable_object_t* o
 			else {
 				int mana_before = hero->mana;
 				hero->mana = std::min(hero->get_maximum_mana(), (uint16_t)(hero->mana + (hero->get_maximum_mana() / 2)));
-				hero->set_visited_object(object);
+				hero->set_visited_object(map.get_object_id(object));
 				show_dialog_callback_fn(DIALOG_TYPE_WELL, object, hero, WELL_VISIT_RESULT_MANA_RESTORED, hero->mana - mana_before);
 			}
 			return MAP_ACTION_SHOW_SECONDARY_INFO_DIALOG;
 		}
 	}
 	else if(object->object_type == OBJECT_MONUMENT) {
-		if(hero->has_object_been_visited(object)) {
+		if(hero->has_object_been_visited(map.get_object_id(object))) {
 			show_dialog_callback_fn(DIALOG_TYPE_MONUMENT, object, hero, 0, 0);
 			return MAP_ACTION_NONE;
 		}
@@ -1136,14 +1299,14 @@ map_action_e game_t::interact_with_object(hero_t* hero, interactable_object_t* o
 			else if(type == MONUMENT_TYPE_ANGEL)
 				hero->increase_defense(1);
 			
-			hero->set_visited_object(object);
+			hero->set_visited_object(map.get_object_id(object));
 			show_dialog_callback_fn(DIALOG_TYPE_MONUMENT, object, hero, 1, 0);
 			return MAP_ACTION_NONE;
 		}
 
 	}
 	
-	return  map.interact_with_object(hero, object, *this);
+	return MAP_ACTION_NONE;/* map.interact_with_object(hero, object, *this); */
 }
 
 void pick_scholar_reward(hero_t* hero, scholar_t* scholar) {
@@ -1261,14 +1424,16 @@ bool game_t::pickup_object(hero_t* hero, interactable_object_t* object, int x, i
 
 	hero->movement_points -= move_cost;
 	//now we need to check to potentially zero out the remainder of the hero's movement if it is low
-	map.zero_hero_movement_points_if_low(hero, *this);
+	map.zero_hero_movement_points_if_low(hero);
 
 	if(object->object_type == OBJECT_RESOURCE) {
 		auto res = (map_resource_t*)object;
 		resource_group_t rg;
-		rg.set_value_for_type(res->resource_type, res->min_quantity);
+		auto quantity = res->min_quantity;
+		rg.set_value_for_type(res->resource_type, quantity);
 		get_player(hero->player).resources += rg; //fixme
-		show_dialog_callback_fn(DIALOG_TYPE_PICKUP_RESOURCE, object, hero, 0, 0);
+		//update_achievement_stats(get_player(hero->player).player_stats.resources.total_resources_picked_up, rg, get_achievement_for_resources(rg));
+
 		remove_interactable_object_callback_fn(object, false);
 		map.remove_interactable_object(object);
 	}
@@ -1279,12 +1444,13 @@ bool game_t::pickup_object(hero_t* hero, interactable_object_t* object, int x, i
 		auto campfire = (campfire_t*)object;
 		int goldval = (int)campfire->gold_value * 100;
 		auto resval = campfire->resource_value;
-		auto restype = (resource_e)(RESOURCE_WOOD + rand() % 4);
+		auto restype = campfire->resource_type;
 		
 		resource_group_t res;
 		res.set_value_for_type(RESOURCE_GOLD, goldval);
 		res.set_value_for_type(campfire->resource_type, resval);
 		get_player(hero->player).resources += res;
+		update_achievement_stats(get_player(hero->player).player_stats.exploration.campfires_visited, 1, ACHIEVEMENT_GOING_CAMPING);
 		
 		show_dialog_callback_fn(DIALOG_TYPE_PICKUP_CAMPFIRE, object, hero, goldval, resval);
 
@@ -1342,7 +1508,7 @@ bool game_t::pickup_object(hero_t* hero, interactable_object_t* object, int x, i
 }
 
 map_action_e game_t::make_dialog_choice(hero_t* hero, interactable_object_t* object, dialog_type_e dialog_type, dialog_choice_e choice) {
-	if(dialog_type == DIALOG_TYPE_NONE) //no action required
+	if(dialog_type == DIALOG_TYPE_NONE || !hero) //no action required
 		return MAP_ACTION_NONE;
 	
 	//dialog_type
@@ -1373,9 +1539,20 @@ map_action_e game_t::make_dialog_choice(hero_t* hero, interactable_object_t* obj
 	}
 	else if(dialog_type == DIALOG_TYPE_MAGIC_SHRINE_VISIT) {
 		auto shrine = (shrine_t*)object;
-		hero->set_visited_object(object);
+		hero->set_visited_object(map.get_object_id(object));
 		if(hero->can_learn_spell(shrine->spell))
 			hero->learn_spell(shrine->spell);
+	}
+	else if(dialog_type == DIALOG_TYPE_WATCHTOWER) {
+		auto watchtower = (flaggable_object_t*)object;
+		auto revealed_tiles = reveal_area(hero->player, hero->x, hero->y, 20, 20);
+
+		watchtower->owner = hero->player;
+		//watchtower->visited 
+		update_achievement_stats(get_player(hero->player).player_stats.exploration.fog_tiles_revealed_watchtower, revealed_tiles, ACHIEVEMENT_THE_NIGHTS_WATCH);
+		if(revealed_tiles > 0)
+			update_achievement_stats(get_player(hero->player).player_stats.exploration.watchtowers_visited, 1, ACHIEVEMENT_WATCHMEN);
+
 	}
 	else if(dialog_type == DIALOG_TYPE_HUT_OF_THE_MAGI) {
 		for(const auto obj : map.objects) {
@@ -1383,8 +1560,8 @@ map_action_e game_t::make_dialog_choice(hero_t* hero, interactable_object_t* obj
 				continue;
 
 			auto eye = (eye_of_the_magi_t*)obj;
-			auto coord = map.get_interactable_coordinate_for_object(eye);
-			reveal_area(hero->player, coord.x, coord.y, eye->reveal_radius, eye->reveal_radius);
+			auto revealed_tiles = reveal_area(hero->player, eye->x, eye->y, eye->reveal_radius, eye->reveal_radius);
+			update_achievement_stats(get_player(hero->player).player_stats.exploration.fog_tiles_revealed_eyes, revealed_tiles, ACHIEVEMENT_ALL_SEEING_EYE);
 		}
 
 		return MAP_ACTION_SHOW_EYES_OF_THE_MAGI;
@@ -1399,6 +1576,7 @@ map_action_e game_t::make_dialog_choice(hero_t* hero, interactable_object_t* obj
 		hero->add_temporary_morale_effect(MORALE_EFFECT_WARRIORS_TOMB, -3);
 		show_dialog_callback_fn(DIALOG_TYPE_WARRIORS_TOMB_REWARD, object, hero, 1, 0);
 		tomb->visited = true;
+		map.set_object_visited_by_player(tomb, hero->player);
 		tomb->artifact = ARTIFACT_NONE;
 		return MAP_ACTION_OBJECT_UPDATED;
 	}
@@ -1409,12 +1587,14 @@ map_action_e game_t::make_dialog_choice(hero_t* hero, interactable_object_t* obj
 			auto gold_value = 500 + chest->value * 500 + ((get_month() - 1) * 2000);
 			gold.set_value_for_type(RESOURCE_GOLD, gold_value);
 			get_player(hero->player).resources += gold;
+			update_achievement_stats(get_player(hero->player).player_stats.resources.total_gold_from_chests, gold_value, ACHIEVEMENT_TREASURE_HUNTER);
 		}
 		else if(choice == DIALOG_CHOICE_2) { //take the xp
 			auto xp_value = chest->value * 500 + (hero->level > 8 ? hero->experience * .1 : 0);
 			give_hero_xp(hero, xp_value);
+			update_achievement_stats(get_player(hero->player).player_stats.resources.total_experience_from_chests, xp_value, ACHIEVEMENT_WISE_WARRIOR);
 		}
-		//auto& tile = map.get_tile_for_interactable_object(object);
+
 		remove_interactable_object_callback_fn(object, false);
 		map.remove_interactable_object(object);
 	}
@@ -1425,22 +1605,22 @@ map_action_e game_t::make_dialog_choice(hero_t* hero, interactable_object_t* obj
 		remove_interactable_object_callback_fn(object, false);
 		map.remove_interactable_object(object);
 	}
-	else if(dialog_type == DIALOG_TYPE_ARENA_VISIT && !hero->has_object_been_visited(object)) {
+	else if(dialog_type == DIALOG_TYPE_ARENA_VISIT && !hero->has_object_been_visited(map.get_object_id(object))) {
 		if(choice == 0) { //attack
 			hero->attack += 2;
 		}
 		else { //defense
 			hero->defense += 2;
 		}
-		hero->set_visited_object(object);
+		hero->set_visited_object(map.get_object_id(object));
 	}
-	else if(dialog_type == DIALOG_TYPE_GAZEBO_VISIT && !hero->has_object_been_visited(object)) {
+	else if(dialog_type == DIALOG_TYPE_GAZEBO_VISIT && !hero->has_object_been_visited(map.get_object_id(object))) {
 		auto xp_value = 1250 + (hero->level > 5 ? hero->level * 50 : 0);
 		give_hero_xp(hero, xp_value);
-		hero->set_visited_object(object);
+		hero->set_visited_object(map.get_object_id(object));
 	}
 	else if((dialog_type == DIALOG_TYPE_SCHOOL_OF_WAR_CHOICE || dialog_type == DIALOG_TYPE_SCHOOL_OF_MAGIC_CHOICE)) {
-		if(hero->has_object_been_visited(object)) //hero has already purchased training from this school
+		if(hero->has_object_been_visited(map.get_object_id(object))) //hero has already purchased training from this school
 			return MAP_ACTION_NONE;
 		
 		if(get_player(hero->player).resources.get_value_for_type(RESOURCE_GOLD) < 1000)
@@ -1457,7 +1637,7 @@ map_action_e game_t::make_dialog_choice(hero_t* hero, interactable_object_t* obj
 		else if(choice == DIALOG_CHOICE_2) //knowledge/defense
 			dialog_type == DIALOG_TYPE_SCHOOL_OF_WAR_CHOICE ? hero->increase_defense(1) :hero->increase_knowledge(1);
 		
-		hero->set_visited_object(object);
+		hero->set_visited_object(map.get_object_id(object));
 	}
 	else if(dialog_type == DIALOG_TYPE_PYRAMID_VISIT && choice == DIALOG_CHOICE_ACCEPT) {
 		auto pyramid = (pyramid_t*)object;
@@ -1498,7 +1678,7 @@ map_action_e game_t::make_dialog_choice(hero_t* hero, interactable_object_t* obj
 	}
 	else if(dialog_type == DIALOG_TYPE_WITCH_HUT_CHOICE && choice == DIALOG_CHOICE_ACCEPT) { //implies player clicked 'ok'/'yes' to witch hut dialog
 		auto hut = (witch_hut_t*)object;
-		if(hero->has_object_been_visited(object))
+		if(hero->has_object_been_visited(map.get_object_id(object)))
 			return MAP_ACTION_NONE;
 		
 		if((hero->get_secondary_skill_base_level(hut->skill) == 0) && hero->get_number_of_open_skill_slots() && hero->can_learn_skill(hut->skill)) {
@@ -1508,7 +1688,7 @@ map_action_e game_t::make_dialog_choice(hero_t* hero, interactable_object_t* obj
 					hero->skills[i].skill = hut->skill;
 					hero->skills[i].level = 1;
 					hero->move_necromancy_to_top_slot();
-					hero->set_visited_object(object);
+					hero->set_visited_object(map.get_object_id(object));
 					return MAP_ACTION_NONE;
 				}
 			}
@@ -1517,7 +1697,7 @@ map_action_e game_t::make_dialog_choice(hero_t* hero, interactable_object_t* obj
 			for(uint i = 0; i < game_config::HERO_SKILL_SLOTS; i++) {
 				if(hero->skills[i].skill == hut->skill) {
 					hero->skills[i].level++;
-					hero->set_visited_object(object);
+					hero->set_visited_object(map.get_object_id(object));
 					return MAP_ACTION_NONE;
 				}
 			}
@@ -1727,8 +1907,31 @@ bool game_t::meet_heroes(hero_t* left, hero_t* right) {
 
 	int max_int_level = std::max(left->get_secondary_skill_level(SKILL_INTELLIGENCE), right->get_secondary_skill_level(SKILL_INTELLIGENCE));
 
+	//trade any learnable spells between heroes if one of them has intelligence skill
 	if(max_int_level > 0) {
+		std::vector<spell_e> left_learned_spells;
+		std::vector<spell_e> right_learned_spells;
+		
+		for(auto lspell : left->spellbook) {
+			const auto& spinfo = game_config::get_spell(lspell);
+			if(spinfo.level > (max_int_level + 1))
+				continue;
 
+			if(right->learn_spell(lspell))
+				right_learned_spells.push_back(lspell);
+		}
+
+		for(auto rspell : right->spellbook) {
+			const auto& spinfo = game_config::get_spell(rspell);
+			if(spinfo.level > (max_int_level + 1))
+				continue;
+
+			if(left->learn_spell(rspell))
+				left_learned_spells.push_back(rspell);
+		}
+
+		if(left_learned_spells.size() || right_learned_spells.size())
+			show_spells_exchanged_dialog_callback_fn(left, right, left_learned_spells, right_learned_spells);
 	}
 
 	return true;
@@ -1802,44 +2005,60 @@ void game_t::setup(game_configuration_t& game_settings, uint64_t seed) {
 
 		auto& cfg = game_settings.player_configs[p.player_number - 1];
 		auto hero_id = cfg.starting_hero_id;
-		if(cfg.selected_class == -1) {
-			cfg.selected_class = (rand() % 6);
+		if(cfg.selected_class == HERO_CLASS_RANDOM || cfg.selected_class == HERO_CLASS_ALL) {
+			cfg.selected_class = get_random_hero_class();
 			cfg.was_class_random = true;
 		}
-
-		main_town->town_type = town_t::hero_class_to_town_type((hero_class_e)cfg.selected_class);
+		
+		if(main_town->town_type == TOWN_UNKNOWN)
+			main_town->town_type = town_t::hero_class_to_town_type(cfg.selected_class);
 
 		if(hero_id == -1) {
 			std::vector<uint> pool;
 			for(uint i = 0; i < game_config::get_heroes().size(); i++) {
 				const auto& h = game_config::get_heroes()[i];
-				if(h.hero_class == cfg.selected_class)
-					pool.push_back(i);
+				if(h.hero_class == cfg.selected_class || cfg.selected_class == HERO_CLASS_ALL) {
+					bool exists = false;
+					for(const auto& existing_hero : map.heroes) {
+						if(h.portrait == existing_hero.second.portrait) {
+							exists = true;
+							break;
+						}
+					}
+
+					if(!exists)
+						pool.push_back(i);
+				}
 			}
 			
 			assert(pool.size());
-			hero_id = pool[rand() % pool.size()];
+			if(pool.size()) {
+				hero_id = pool[rand() % pool.size()];
+			}
+			else { //if for some reason we can't get heroes of the selected class, then take from the general pool
+				hero_id = get_new_hero_id();
+			}
 			cfg.was_hero_random = true;
 		}
 		
-		auto hero = game_config::get_heroes()[hero_id];
-		hero.player = p.player_number;
-		auto pos = map.get_interactable_coordinate_for_object(main_town);
-		hero.x = pos.x;
-		hero.y = pos.y;
-		hero.init_hero(date, map.get_tile(hero.x, hero.y).terrain_type);
-		auto id = get_new_hero_id();
-		hero.id = id;
-		map.heroes[id] = hero;
-		map.hero_visit_town(&map.heroes[id], main_town);
+		if(!cfg.is_hero_set_by_map) { //the case where the player selects a hero in the scenario selection screen
+			auto hero = game_config::get_heroes()[hero_id];
+			hero.player = p.player_number;
+			hero.x = main_town->x;
+			hero.y = main_town->y;
+			hero.init_hero(date, map.get_tile(hero.x, hero.y).terrain_type);
+			auto id = get_new_hero_id();
+			hero.id = id;
+			map.heroes[id] = hero;
+			map.hero_visit_town(&map.heroes[id], main_town);
+		}
 		
-		cfg.selected_class = cfg.selected_class;
 		cfg.starting_hero_id = hero_id;
 	}
 
-	generate_new_week_recruitable_heroes();
-	
 	game_configuration = game_settings;
+
+	generate_new_week_recruitable_heroes();
 	
 //	game_configuration.difficulty = game_settings.difficulty;
 //	game_configuration.player_count = game_settings.player_count;
@@ -1848,7 +2067,7 @@ void game_t::setup(game_configuration_t& game_settings, uint64_t seed) {
 	
 	setup_scripting();
 
-	map.initialize_map(game_settings, seed);
+	map.initialize_map(seed);
 }
 
 int16_t game_t::get_new_hero_id() const {
@@ -1919,27 +2138,84 @@ hero_t game_t::generate_new_recruitable_hero(const player_t& player) {
 	
 	hero.experience = 50 + rand() % 250;
 	hero.id = get_new_hero_id();
-	
+
 	return hero;
 }
 
 hero_class_e get_random_adjacent_class(hero_class_e hclass) {
 	switch(hclass) {
-		case HERO_KNIGHT:
-			return (rand() % 2 == 1) ? HERO_SORCERESS : HERO_WIZARD;
-		case HERO_SORCERESS:
-			return (rand() % 2 == 1) ? HERO_KNIGHT : HERO_WIZARD;
-		case HERO_WIZARD:
-			return (rand() % 2 == 1) ? HERO_SORCERESS : HERO_KNIGHT;
-		case HERO_WARLOCK:
-			return (rand() % 2 == 1) ? HERO_NECROMANCER : HERO_BARBARIAN;
-		case HERO_NECROMANCER:
-			return (rand() % 2 == 1) ? HERO_WARLOCK : HERO_BARBARIAN;
-		case HERO_BARBARIAN:
-			return (rand() % 2 == 1) ? HERO_WARLOCK : HERO_NECROMANCER;
+		case HERO_CLASS_KNIGHT:
+			return (rand() % 2 == 1) ? HERO_CLASS_SORCERESS : HERO_CLASS_WIZARD;
+		case HERO_CLASS_SORCERESS:
+			return (rand() % 2 == 1) ? HERO_CLASS_KNIGHT : HERO_CLASS_WIZARD;
+		case HERO_CLASS_WIZARD:
+			return (rand() % 2 == 1) ? HERO_CLASS_SORCERESS : HERO_CLASS_KNIGHT;
+		case HERO_CLASS_WARLOCK:
+			return (rand() % 2 == 1) ? HERO_CLASS_NECROMANCER : HERO_CLASS_BARBARIAN;
+		case HERO_CLASS_NECROMANCER:
+			return (rand() % 2 == 1) ? HERO_CLASS_WARLOCK : HERO_CLASS_BARBARIAN;
+		case HERO_CLASS_BARBARIAN:
+			return (rand() % 2 == 1) ? HERO_CLASS_WARLOCK : HERO_CLASS_NECROMANCER;
 	}
 
-	return HERO_KNIGHT;
+	return HERO_CLASS_KNIGHT;
+}
+
+const std::vector<hero_class_e>& get_all_hero_classes() {
+	static const std::vector<hero_class_e> classes = {
+			HERO_CLASS_KNIGHT,
+			HERO_CLASS_BARBARIAN,
+			HERO_CLASS_NECROMANCER,
+			HERO_CLASS_SORCERESS,
+			HERO_CLASS_WARLOCK,
+			HERO_CLASS_WIZARD
+	};
+
+	return classes;
+}
+
+hero_class_e get_random_hero_class(hero_class_e mask, std::mt19937_64& rng) {
+	const uint16_t mask_bits = (uint16_t)mask;
+
+	std::vector<hero_class_e> candidates;
+	candidates.reserve(get_all_hero_classes().size());
+
+	for(hero_class_e c : get_all_hero_classes()) {
+		if(((uint16_t)c & mask_bits) != 0)
+			candidates.push_back(c);
+	}
+
+	if(candidates.empty())
+		return HERO_CLASS_NONE;
+
+	std::uniform_int_distribution<size_t> dist(0, candidates.size() - 1);
+	return candidates[dist(rng)];
+}
+
+hero_class_e get_random_hero_class(hero_class_e mask) {
+	static thread_local std::mt19937_64 rng{ std::random_device{}() };
+	return get_random_hero_class(mask, rng);
+}
+
+resource_e get_random_resource(std::bitset<8> mask) {
+	static thread_local std::mt19937_64 rng{ std::random_device{}() };
+	return get_random_resource(mask, rng);
+}
+
+resource_e get_random_resource(std::bitset<8> mask, std::mt19937_64& rng) {
+	std::vector<resource_e> candidates;
+	candidates.reserve(7);
+
+	for(int i = 1; i < 8; i++) {
+		if(mask.test(i))
+			candidates.push_back((resource_e)i);
+	}
+
+	if(candidates.empty())
+		return RESOURCE_RANDOM;
+	
+	std::uniform_int_distribution<size_t> dist(0, candidates.size() - 1);
+	return candidates[dist(rng)];
 }
 
 void game_t::generate_new_week_recruitable_heroes() {
@@ -1966,7 +2242,7 @@ void game_t::generate_new_week_recruitable_heroes() {
 		const auto& pcfg = get_player_configuration(pl.player_number);
 		//todo: keep track of the previous week's offered heroes, and make sure we don't select any repeats
 		//offer 1-2 heroes of a player's class, one 'adjacently' aligned hero, and a random one (if one remains)
-		auto primary_class = (hero_class_e)pcfg.selected_class;
+		auto primary_class = pcfg.selected_class;
 		auto adjacent_class = get_random_adjacent_class(primary_class);
 		bool picked_adjacent = false;
 		int num_primary = (rand() % 2 == 1) ? 2 : 1;
@@ -2008,8 +2284,7 @@ bool game_t::buy_troops_at_object(player_e player_num, interactable_object_t* ob
 	if(count > troops->stack_size)
 		return false;
 	
-	auto pos = map.get_interactable_coordinate_for_object(object);
-	hero_t* hero = map.get_hero_at_tile(pos.x, pos.y);
+	hero_t* hero = map.get_hero_at_tile(object->x, object->y);
 	
 	if(!hero)
 		return false;
@@ -2023,6 +2298,9 @@ bool game_t::buy_troops_at_object(player_e player_num, interactable_object_t* ob
 	
 	player.resources -= troop_cost;
 	troops->stack_size -= count;
+
+	player.player_stats.units_recruited[troops->unit_type] += count;
+	player.player_stats.total_units_recruited += count;
 
 	troop_t troops_to_buy(troops->unit_type, count);
 	if(map.can_add_troop_to_group(troops_to_buy, hero->troops)) {
@@ -2053,6 +2331,9 @@ bool game_t::buy_troops_at_town(player_e player_num, town_t* town, uint slot_num
 	
 	player.resources -= troop_cost;
 	
+	player.player_stats.units_recruited[troop.unit_type] += count;
+	player.player_stats.total_units_recruited += count;
+
 	//todo: refactor this to troop_t::combine_troops or similar
 	if(town->garrisoned_hero) {
 		bool added = false;
@@ -2140,9 +2421,8 @@ hero_t* game_t::recruit_hero_at_town(player_e player, int selection, town_t* tow
 	new_hero.player = player;
 	map.heroes[new_hero.id] = new_hero;
 	auto& hero = map.heroes[new_hero.id];
-	auto offset = map.get_interactable_offset_for_object(town);
-	hero.x = town->x + offset.x;
-	hero.y = town->y + offset.y;
+	hero.x = town->x;
+	hero.y = town->y;
 	
 	if(town->visiting_hero) {
 		//todo merge troops
@@ -2167,6 +2447,87 @@ hero_t* game_t::recruit_hero_at_town(player_e player, int selection, town_t* tow
 	pl.heroes_available_to_recruit[selection] = new_recruitable_hero;
 	
 	return &hero;
+}
+
+bool game_t::build_building(town_t* town, building_e building_id) {
+	if(!town || building_id == BUILDING_NONE)
+		return false;
+
+	if(!town->can_build_building(building_id, *this))
+		return false;
+
+	town->build_building(building_id, *this);
+		
+	//move this
+	if(building_id == BUILDING_MAGE_GUILD_1 || building_id == BUILDING_MAGE_GUILD_2 || building_id == BUILDING_MAGE_GUILD_3 || building_id == BUILDING_MAGE_GUILD_4 || building_id == BUILDING_MAGE_GUILD_5) {
+		for(auto sp : town->mage_guild_spells) {
+			auto& spell = game_config::get_spell(sp);
+			if(town->garrisoned_hero && town->garrisoned_hero->can_learn_spell(sp))
+				town->garrisoned_hero->learn_spell(sp);
+				
+			if(town->visiting_hero && town->visiting_hero->can_learn_spell(sp))
+				town->visiting_hero->learn_spell(sp);
+		}
+	}
+
+	if(!player_valid(town->player))
+		return true;
+
+	auto& pl = get_player(town->player);
+	auto& cs = pl.player_stats.construction;
+
+	const auto& building_info = game_config::get_building(building_id);
+
+	switch(town->town_type)	{
+		case TOWN_KNIGHT:		cs.paladin_buildings++; break;
+		case TOWN_BARBARIAN:	cs.barbarian_buildings++; break;
+		case TOWN_NECROMANCER:	cs.necromancer_buildings++; break;
+		case TOWN_SORCERESS:	cs.enchantress_buildings++; break;
+		case TOWN_WARLOCK:		cs.warlock_buildings++; break;
+		case TOWN_WIZARD:		cs.wizard_buildings++; break;
+		default: break;
+	}
+	
+	if(building_id == BUILDING_FORT)
+		cs.total_forts_built++;
+	else if(building_id == BUILDING_CASTLE)
+		cs.total_castles_upgraded++;
+	else if(building_id == BUILDING_MARKETPLACE)
+		cs.total_marketplaces_built++;
+	else if(building_id == BUILDING_CAPTAINS_QUARTERS)
+		cs.total_captains_quarters_built++;
+	else if(building_id == BUILDING_MARKETPLACE)
+		pl.player_stats.construction.total_marketplaces_built++;
+	else if(building_id == BUILDING_TURRET_LEFT || building_id == BUILDING_TURRET_RIGHT)
+		pl.player_stats.construction.total_turrets_built++;
+
+	if(building_id == BUILDING_FORT || building_id == BUILDING_CASTLE)
+		update_interactable_object_callback_fn(town);
+
+	if(building_id == BUILDING_LOOKOUT_ROCK) {
+		reveal_area(town->player, town->x, town->y, 18, 24);
+		update_visibility(town->player);
+	}
+
+	bool fully_upgraded = (town->is_building_built(BUILDING_CASTLE) && town->is_building_built(BUILDING_TURRET_LEFT) && town->is_building_built(BUILDING_TURRET_RIGHT));
+	
+	if(building_id == BUILDING_TURRET_LEFT || building_id == BUILDING_TURRET_RIGHT || building_id == BUILDING_CAPTAINS_QUARTERS)
+		cs.total_castles_fully_upgraded++;
+		
+	switch(building_info.subtype) {
+		case BUILDING_BASE_TYPE_GENERATOR1: cs.total_tier1_dwellings_built++; break;
+		case BUILDING_BASE_TYPE_GENERATOR2: cs.total_tier2_dwellings_built++; break;
+		case BUILDING_BASE_TYPE_GENERATOR3: cs.total_tier3_dwellings_built++; break;
+		case BUILDING_BASE_TYPE_GENERATOR4: cs.total_tier4_dwellings_built++; break;
+		case BUILDING_BASE_TYPE_GENERATOR5: cs.total_tier5_dwellings_built++; break;
+		case BUILDING_BASE_TYPE_GENERATOR6: cs.total_tier6_dwellings_built++; break;
+		default: break;
+	}
+
+	if(building_info.subtype >= BUILDING_BASE_TYPE_SPECIAL1 && building_info.subtype <= BUILDING_BASE_TYPE_SPECIAL4)
+		cs.total_special_buildings_built++;
+
+	return true;
 }
 
 uint game_t::read_save_game_header_stream(QDataStream& stream, save_game_header_t& header) {
@@ -2267,7 +2628,7 @@ uint game_t::save_game(const std::string& filename) {
 			QDataStream object_stream(&buffer);
 
 			//write object data to temporary stream
-			object_stream << obj->asset_id << obj->x << obj->y << obj->z << obj->width << obj->height;
+			object_stream << obj->asset_id << obj->x << obj->y;
 			obj->write_data(object_stream);
 
 			//write size followed by the buffer contents to main stream
@@ -2405,7 +2766,7 @@ uint game_t::load_saved_game_info(QDataStream& stream, save_game_header_t& heade
 			}
 
 			//read the base class members from the buffer
-			object_stream >> obj->asset_id >> obj->x >> obj->y >> obj->z >> obj->width >> obj->height;
+			object_stream >> obj->asset_id >> obj->x >> obj->y;
 
 			//read the derived class data
 			obj->read_data(object_stream);
@@ -2435,7 +2796,7 @@ QDataStream& operator<<(QDataStream& stream, const player_configuration_t& confi
 	stream << config.is_human;
 	stream_write_string(stream, config.player_name);
 	stream << config.selected_class;
-	stream_write_vector(stream, config.allowed_classes);
+	stream << config.allowed_classes;
 	stream << config.allowed_player_type;
 	stream << config.starting_hero_id;
 	
@@ -2449,7 +2810,7 @@ QDataStream& operator>>(QDataStream& stream, player_configuration_t& config) {
 	stream >> config.is_human;
 	config.player_name = stream_read_string(stream);
 	stream >> config.selected_class;
-	stream_read_vector(stream, config.allowed_classes, HERO_KNIGHT, max_enum_val<hero_class_e>());
+	stream >> config.allowed_classes;
 	stream >> config.allowed_player_type;
 	stream >> config.starting_hero_id;
 	

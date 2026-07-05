@@ -214,11 +214,11 @@ bool get_bool_option_or_default(const std::unordered_map<std::string, std::strin
         return parse_bool(it->second);
 }
 
-rl::combat::combat_scenario_spec_t build_default_scenario(std::mt19937& rng,
+combat_scenario_spec_t build_default_scenario(std::mt19937& rng,
                                                            const std::unordered_map<std::string, std::string>& options) {
-        using rl::combat::combat_scenario_spec_t;
-        using rl::combat::hero_loadout_spec_t;
-        using rl::combat::troop_stack_spec_t;
+        using combat_scenario_spec_t;
+        using hero_loadout_spec_t;
+        using troop_stack_spec_t;
 
         const int attacker_unit = get_option_or_default(options, "attacker_unit_type", 16);
         const int defender_unit = get_option_or_default(options, "defender_unit_type", 16);
@@ -271,11 +271,11 @@ rl::combat::combat_scenario_spec_t build_default_scenario(std::mt19937& rng,
         return scenario;
 }
 
-rl::combat::action_mask_t legal_action_mask(const rl::combat::combat_observation_t& observation) {
-        using rl::combat::action_mask_t;
-        using rl::combat::combat_action_type_t;
+action_mask_t legal_action_mask(const combat_observation_t& observation) {
+        using action_mask_t;
+        using combat_action_type_t;
 
-        action_mask_t mask(rl::combat::ACTION_COUNT, 0);
+        action_mask_t mask(ACTION_COUNT, 0);
         const auto auto_index = static_cast<std::size_t>(combat_action_type_t::AUTO_RESOLVE);
         mask[auto_index] = 1;
 
@@ -287,7 +287,7 @@ rl::combat::action_mask_t legal_action_mask(const rl::combat::combat_observation
         const auto y = observation.active_unit_y;
         const auto& stacks = attacker_active ? observation.attacker_stacks : observation.defender_stacks;
 
-        const rl::combat::stack_observation_t* active_stack = nullptr;
+        const stack_observation_t* active_stack = nullptr;
         for(const auto& stack : stacks) {
                 if(!stack.is_alive)
                         continue;
@@ -305,12 +305,12 @@ rl::combat::action_mask_t legal_action_mask(const rl::combat::combat_observation
         return mask;
 }
 
-rl::combat::controlled_side_t parse_side(const std::string& value) {
+controlled_side_t parse_side(const std::string& value) {
         const auto normalized = to_lower(value);
         if(normalized == "attacker")
-                return rl::combat::controlled_side_t::ATTACKER;
+                return controlled_side_t::ATTACKER;
         if(normalized == "defender")
-                return rl::combat::controlled_side_t::DEFENDER;
+                return controlled_side_t::DEFENDER;
         throw std::invalid_argument("--side must be 'attacker' or 'defender'");
 }
 
@@ -385,7 +385,7 @@ int main(int argc, char** argv) {
         game_config::load_game_data();
         game_t game_instance;
 
-        rl::combat::controlled_side_t side;
+        controlled_side_t side;
         try {
                 side = parse_side(options.side);
         } catch(const std::exception& ex) {
@@ -393,14 +393,14 @@ int main(int argc, char** argv) {
                 return 1;
         }
 
-        rl::combat::combat_environment_t environment(game_instance, side);
+        combat_environment_t environment(game_instance, side);
 
         const auto hidden_layers = resolve_hidden_layers(options.hidden_layers);
-        rl::combat::CombatPolicyOptions policy_options;
+        CombatPolicyOptions policy_options;
         policy_options.hidden_layers = hidden_layers;
         policy_options.use_layer_norm = options.layer_norm;
 
-        torch::Device device = torch::kCPU;
+        torch::Device device = torch::kCUDA;
         if(options.device) {
                 try {
                         device = torch::Device(*options.device);
@@ -418,16 +418,16 @@ int main(int argc, char** argv) {
                         torch::cuda::manual_seed_all(*options.seed);
         }
 
-        const auto observation_dim = rl::combat::observation_feature_count();
-        rl::combat::combat_agent_t policy_agent(observation_dim, environment.action_count(), policy_options, device);
-        rl::combat::combat_agent_t target_agent(observation_dim, environment.action_count(), policy_options, device);
+        const auto observation_dim = observation_feature_count();
+        combat_agent_t policy_agent(observation_dim, environment.action_count(), policy_options, device);
+        combat_agent_t target_agent(observation_dim, environment.action_count(), policy_options, device);
 
         const std::optional<uint32_t> seed_opt = options.seed ? std::optional<uint32_t>(static_cast<uint32_t>(*options.seed))
                                                               : std::optional<uint32_t>();
 
-        rl::combat::replay_buffer_t replay_buffer(static_cast<std::size_t>(options.buffer_capacity), seed_opt);
+        replay_buffer_t replay_buffer(static_cast<std::size_t>(options.buffer_capacity), seed_opt);
 
-        rl::combat::dqn_config_t config;
+        dqn_config_t config;
         config.discount = options.discount;
         config.batch_size = static_cast<std::size_t>(options.batch_size);
         config.minimum_buffer_size = static_cast<std::size_t>(options.minimum_buffer);
@@ -441,15 +441,15 @@ int main(int argc, char** argv) {
                                             : std::optional<double>();
         config.learning_rate = options.learning_rate;
 
-        rl::combat::epsilon_schedule_t epsilon_schedule;
+        epsilon_schedule_t epsilon_schedule;
         epsilon_schedule.start = options.epsilon_start;
         epsilon_schedule.end = options.epsilon_end;
         epsilon_schedule.decay_steps = static_cast<std::size_t>(std::max(options.epsilon_decay, 0));
 
-        rl::combat::discrete_action_space_t action_space({
-                rl::combat::combat_action_type_t::WAIT,
-                rl::combat::combat_action_type_t::DEFEND,
-                rl::combat::combat_action_type_t::AUTO_RESOLVE,
+        discrete_action_space_t action_space({
+                combat_action_type_t::WAIT,
+                combat_action_type_t::DEFEND,
+                combat_action_type_t::AUTO_RESOLVE,
         });
 
         auto scenario_options = options.scenario_options;
@@ -457,11 +457,11 @@ int main(int argc, char** argv) {
                 return build_default_scenario(rng, scenario_options);
         };
 
-        auto legal_fn = [](const rl::combat::combat_observation_t& observation) {
-                return std::optional<rl::combat::action_mask_t>(legal_action_mask(observation));
+        auto legal_fn = [](const combat_observation_t& observation) {
+                return std::optional<action_mask_t>(legal_action_mask(observation));
         };
 
-        rl::combat::dqn_trainer_t trainer(environment,
+        dqn_trainer_t trainer(environment,
                                           policy_agent,
                                           target_agent,
                                           replay_buffer,
@@ -473,7 +473,7 @@ int main(int argc, char** argv) {
                                           device,
                                           seed_opt);
 
-        rl::combat::training_metrics_t metrics = trainer.train(static_cast<std::size_t>(options.episodes));
+        training_metrics_t metrics = trainer.train(static_cast<std::size_t>(options.episodes));
 
         std::cout << "Completed " << metrics.episode_rewards.size() << " episodes / " << metrics.total_steps
                   << " environment steps\n";

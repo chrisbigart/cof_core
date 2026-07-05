@@ -1,7 +1,8 @@
 #include "core/town.h"
-#include "core/magic_enum.hpp"
 #include "core/game.h"
 #include "core/qt_headers.h"
+#include "core/utils.h"
+#include "core/utils_enum.h"
 
 #include <random>
 #include <algorithm>
@@ -297,6 +298,12 @@ int town_t::get_castle_level() const {
 	return 0;
 }
 
+//we cap this at 2, this indicates the adventure map appearance of the town
+//there are 3 appearance levels, tent/fort/castle
+int town_t::get_development_level() const {
+	return std::clamp(get_castle_level(), 0, 2);
+}
+
 float town_t::get_turret_damage_multiplier() const {
 	float multi = 1.0f;
 
@@ -406,7 +413,7 @@ bool town_t::are_building_prerequisites_satisfied(building_e building) const {
 }
 
 bool town_t::can_build_building(building_e building_type, const game_t& gamestate) const {
-	if(has_built_today || !is_building_enabled(building_type))
+	if(has_built_today || !is_building_enabled(building_type) || is_building_built(building_type))
 		return false;
 	
 	//todo
@@ -463,29 +470,29 @@ bool town_t::build_building(building_e building_type, game_t& gamestate) {
 
 hero_class_e town_t::town_type_to_hero_class(town_type_e town_type) {
 	switch(town_type) {
-		case TOWN_UNKNOWN: return HERO_CUSTOM;
+		case TOWN_UNKNOWN: return HERO_CLASS_NONE;
 		//case TOWN_NEUTRAL: return HERO_CUSTOM;
-		case TOWN_CUSTOM: return HERO_CUSTOM;
-		case TOWN_KNIGHT: return HERO_KNIGHT;
-		case TOWN_BARBARIAN: return HERO_BARBARIAN;
-		case TOWN_WIZARD: return HERO_WIZARD;
-		case TOWN_WARLOCK: return HERO_WARLOCK;
-		case TOWN_NECROMANCER: return HERO_NECROMANCER;
-		case TOWN_SORCERESS: return HERO_SORCERESS;
+		case TOWN_CUSTOM: return HERO_CLASS_CUSTOM;
+		case TOWN_KNIGHT: return HERO_CLASS_KNIGHT;
+		case TOWN_BARBARIAN: return HERO_CLASS_BARBARIAN;
+		case TOWN_WIZARD: return HERO_CLASS_WIZARD;
+		case TOWN_WARLOCK: return HERO_CLASS_WARLOCK;
+		case TOWN_NECROMANCER: return HERO_CLASS_NECROMANCER;
+		case TOWN_SORCERESS: return HERO_CLASS_SORCERESS;
 	}
 	
-	return HERO_CUSTOM;
+	return HERO_CLASS_NONE;
 }
 
 town_type_e town_t::hero_class_to_town_type(hero_class_e hero_class) {
 	switch(hero_class) {
-		case HERO_KNIGHT: return TOWN_KNIGHT;
-		case HERO_BARBARIAN: return TOWN_BARBARIAN;
-		case HERO_WIZARD: return TOWN_WIZARD;
-		case HERO_WARLOCK: return TOWN_WARLOCK;
-		case HERO_NECROMANCER: return TOWN_NECROMANCER;
-		case HERO_SORCERESS: return TOWN_SORCERESS;
-		case HERO_CUSTOM:
+		case HERO_CLASS_KNIGHT: return TOWN_KNIGHT;
+		case HERO_CLASS_BARBARIAN: return TOWN_BARBARIAN;
+		case HERO_CLASS_WIZARD: return TOWN_WIZARD;
+		case HERO_CLASS_WARLOCK: return TOWN_WARLOCK;
+		case HERO_CLASS_NECROMANCER: return TOWN_NECROMANCER;
+		case HERO_CLASS_SORCERESS: return TOWN_SORCERESS;
+		case HERO_CLASS_CUSTOM:
 		default: return TOWN_CUSTOM;
 	}
 	
@@ -551,15 +558,32 @@ building_e get_generator_for_town_type(town_type_e type, uint tier) {
 	return BUILDING_NONE;
 }
 
+void town_t::setup_default_buildings() {
+	built_buildings.clear();
+	built_buildings.push_back(BUILDING_FORT);
+	built_buildings.push_back(BUILDING_TAVERN);
+	built_buildings.push_back(get_generator_for_town_type(town_type, 1));
+	if(utils::rand_chance(50))
+		built_buildings.push_back(get_generator_for_town_type(town_type, 2));
+}
+
 void town_t::setup_buildings() {
-	//std::erase(available_buildings, BUILDING_SHIPYARD);//std::remove(available_buildings.begin(), available_buildings.end(), BUILDING_SHIPYARD);
-	
-	if(!built_buildings.size()) {
-		built_buildings.push_back(BUILDING_FORT);
-		built_buildings.push_back(BUILDING_TAVERN);
-		built_buildings.push_back(get_generator_for_town_type(town_type, 1));
-		if(utils::rand_chance(50))
-			built_buildings.push_back(get_generator_for_town_type(town_type, 2));
+	if(!available_buildings.size()) {
+		for(const auto& building : game_config::get_buildings()) {
+			auto type = building.type;
+			
+			auto hc = town_type_to_hero_class(town_type);
+			if(building.matching_faction == HERO_CLASS_ALL)
+				available_buildings.push_back(type);
+			else if(building.matching_faction == hc)
+				available_buildings.push_back(type);
+			else if(building.matching_faction == HERO_CLASS_NON_NECRO && hc != HERO_CLASS_NECROMANCER)
+				available_buildings.push_back(type);
+			else if(building.matching_faction == HERO_CLASS_NON_BARBARIAN && hc != HERO_CLASS_BARBARIAN)
+				available_buildings.push_back(type);
+		}
+
+		setup_default_buildings();
 	}
 	
 	for(auto b : built_buildings) {
@@ -577,30 +601,6 @@ void town_t::setup_buildings() {
 			populate_available_spells(4);
 		if(building.type == BUILDING_MAGE_GUILD_5)
 			populate_available_spells(5);
-	}
-	
-	if(!available_buildings.size()) {
-		magic_enum::enum_for_each<building_e>([this] (auto val) {
-			constexpr building_e type = val;
-			//auto name = magic_enum::enum_name(type).data();
-	//		building_t b;
-	//		b.type = type;
-			auto& building = game_config::get_building(type);
-			bool match = false;
-
-			if(type == BUILDING_SHIPYARD) //todo: implement me
-				return;
-
-			auto hc = town_type_to_hero_class(town_type);
-			if(building.matching_faction == HERO_CLASS_ALL)
-				available_buildings.push_back(type);
-			else if(building.matching_faction == hc)
-				available_buildings.push_back(type);
-			else if(building.matching_faction == HERO_CLASS_NON_NECRO && hc != HERO_NECROMANCER)
-				available_buildings.push_back(type);
-			else if(building.matching_faction == HERO_CLASS_NON_BARBARIAN && hc != HERO_BARBARIAN)
-				available_buildings.push_back(type);
-		});
 	}
 
 	//we shouldn't have duplicate spells in allowed_spells, but just in case we do, remove them
@@ -629,14 +629,14 @@ building_e building_t::get_parent_building(building_e type) {
 	if(type == BUILDING_MAGE_GUILD_2)
 		return BUILDING_MAGE_GUILD_1;
 	
-	if(type == BUILDING_CASTLE)
+	if(type == BUILDING_CASTLE || type == BUILDING_TENT)
 		return BUILDING_FORT;
 	
 	if(type == BUILDING_AUCTION_HOUSE)
 		return BUILDING_MARKETPLACE;
 	
-	if(type == BUILDING_LIGHTHOUSE)
-		return BUILDING_SHIPYARD;
+	//if(type == BUILDING_LIGHTHOUSE)
+	//	return BUILDING_SHIPYARD;
 	
 	return BUILDING_NONE;
 }

@@ -1,7 +1,7 @@
 #pragma once
 
-#include "rl/combat_agent.h"
-#include "rl/combat_environment.h"
+#include "combat_agent.h"
+#include "combat_environment.h"
 
 #include <cstddef>
 #include <deque>
@@ -10,9 +10,6 @@
 #include <optional>
 #include <random>
 #include <vector>
-
-namespace rl {
-namespace combat {
 
 struct dqn_config_t {
         double discount = 0.99;
@@ -96,7 +93,7 @@ public:
                       epsilon_schedule_t epsilon_schedule,
                       scenario_generator_t scenario_generator,
                       legal_action_fn_t legal_action_fn = {},
-                      torch::Device device = torch::kCPU,
+                      torch::Device device = torch::kCUDA,
                       std::optional<uint32_t> seed = std::nullopt);
 
         [[nodiscard]] training_metrics_t train(std::size_t episodes);
@@ -131,7 +128,4 @@ private:
         std::mt19937 rng;
         std::size_t global_step = 0;
 };
-
-} // namespace combat
-} // namespace rl
 

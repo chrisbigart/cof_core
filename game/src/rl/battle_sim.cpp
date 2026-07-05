@@ -1,11 +1,7 @@
-#include "rl/battle_sim.h"
+#include "battle_sim.h"
 
 #include <algorithm>
 #include <utility>
-
-namespace rl {
-namespace combat {
-namespace {
 
 void ensure_player_table(game_t& game_instance) {
         if(game_instance.players.size() < game_config::MAX_NUMBER_OF_PLAYERS) {
@@ -22,7 +18,6 @@ void ensure_player_table(game_t& game_instance) {
         }
 }
 
-}
 
 battle_sim_t::battle_sim_t(game_t& game_instance) : game_instance(&game_instance) {
         initialize_players_if_needed();
@@ -137,7 +132,4 @@ void assign_human_players(game_t& game_instance, const std::vector<player_e>& hu
                 config_entry.is_human = is_human;
         }
 }
-
-} // namespace combat
-} // namespace rl
 

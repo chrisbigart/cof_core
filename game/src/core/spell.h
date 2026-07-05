@@ -54,7 +54,12 @@ enum spell_target_e : uint8_t {
 	TARGET_ADVENTURE_LOCATION
 };
 
-enum spell_e : uint16_t {
+#ifndef UENUM
+	#define UENUM(...)
+#endif
+
+UENUM(BlueprintType)
+enum spell_e : uint8 {
 	SPELL_UNKNOWN,
 	SPELL_CURE,
 	SPELL_SWIFTNESS,
@@ -143,14 +148,14 @@ enum spell_e : uint16_t {
 	SPELL_RITUAL,
 	SPELL_RECALL,
 	SPELL_CONJURE_SHIP,
-	SPELL_MIGHT
+	SPELL_MIGHT,
+	SPELL_SUMMON_EFREET,
+	SPELL_SUMMON_TREANTS,
+	SPELL_SUMMON_ANGEL
 
 	//SPELL_SPROUT,
-	//SPELL_SUMMON_TREANTS,
 	//SPELL_HYDRA,
 	//SPELL_ANGELS_WINGS,
-	//SPELL_SUMMON_ANGEL,
-	//SPELL_SUMMON_INFERNAL,
 };
 
 struct spell_multiplier_t {
@@ -177,7 +182,7 @@ struct spell_t {
 	uint8_t level;
 	spell_multiplier_t multiplier[3];
 
-	static std::string get_school_name(spell_school_e school);
+	static std::string get_school_name(spell_school_e school, bool include_magic_suffix = true);
 
 	magic_damage_e get_damage_component_type() const {
 		return (magic_damage_e)((int)damage_type & (~(int)MAGIC_DAMAGE_HEALING));

@@ -1,13 +1,9 @@
-#include "rl/combat_environment.h"
+#include "combat_environment.h"
 
-#include "rl/battle_sim.h"
+#include "battle_sim.h"
 
 #include <algorithm>
 
-namespace rl {
-namespace combat {
-
-namespace {
 float terminal_reward(battle_result_e result, controlled_side_t side) {
         switch(result) {
         case BATTLE_ATTACKER_VICTORY:
@@ -24,19 +20,14 @@ float terminal_reward(battle_result_e result, controlled_side_t side) {
         }
 }
 
-} // namespace
-
-combat_action_spec_t action_from_type(combat_action_type_t type) {
-        combat_action_spec_t action;
-        action.type = type;
-        return action;
-}
-
 combat_environment_t::combat_environment_t(game_t& game_instance, controlled_side_t side)
         : game_instance(&game_instance)
         , session_instance(game_instance)
         , side_controlled(side) {
-        session_instance.game().battle.fn_emit_combat_action = [](const battle_action_t&) {};
+        session_instance.simulator.game().battle.fn_emit_combat_action = [this] (const battle_action_t& action) {
+            if(record_actions)
+                action_history.push_back(action);
+        };
 }
 
 void combat_environment_t::configure(const combat_scenario_spec_t& spec) {
@@ -51,7 +42,8 @@ void combat_environment_t::configure(const combat_scenario_spec_t& spec) {
 combat_observation_t combat_environment_t::reset() {
         if(!scenario_ready)
                 return combat_observation_t();
-
+        
+        action_history.clear();
         session_instance.reset();
         ensure_agent_turn();
         return capture_observation(session_instance);
@@ -62,7 +54,7 @@ std::tuple<combat_observation_t, float, bool, battle_result_e> combat_environmen
                 return std::make_tuple(combat_observation_t(), 0.0F, true, BATTLE_IN_PROGRESS);
 
         float reward = 0.0F;
-        bool applied = session_instance.apply_action(action_from_type(action_type));
+        bool applied = session_instance.apply_action(action_type);
         if(!applied)
                 reward -= 0.1F;
 
@@ -82,7 +74,7 @@ void combat_environment_t::ensure_agent_turn() {
         if(!scenario_ready)
                 return;
 
-        auto& battlefield = session_instance.battlefield();
+        auto& battlefield = session_instance.simulator.battlefield();
         while(true) {
                 const auto* active = battlefield.get_active_unit();
                 if(!active)
@@ -100,7 +92,4 @@ void combat_environment_t::ensure_agent_turn() {
 void combat_environment_t::set_controlled_side(controlled_side_t side) {
         side_controlled = side;
 }
-
-} // namespace combat
-} // namespace rl
 

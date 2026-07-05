@@ -8,6 +8,8 @@ struct adventure_map_t;
 struct creature_t;
 struct interactable_object_t;
 
+class QDataStream;
+
 struct script_t {
 	int validate();
 	int execute(int timeout_us = 1000);
@@ -67,19 +69,5 @@ struct script_t {
 	//lua jit compiled blob?
 };
 
-
-inline QDataStream& operator<<(QDataStream& stream, const script_t& script) {
-	stream << script.script_id << script.enabled << script.finished;
-	stream_write_string(stream, script.name, 64);
-	stream_write_string(stream, script.text, 4096);
-	return stream;
-}
-
-
-inline QDataStream& operator>>(QDataStream& stream, script_t& script) {
-	stream >> script.script_id >> script.enabled >> script.finished;
-	script.name = stream_read_string(stream, 64);
-	script.text = stream_read_string(stream, 4096);
-	
-	return stream;
-}
+QDataStream& operator<<(QDataStream& stream, const script_t& script);
+QDataStream& operator>>(QDataStream& stream, script_t& script);

@@ -1,6 +1,9 @@
 #pragma once
 
-#include "core/utils.h"
+#include <vector>
+
+typedef unsigned short uint16_t; //fixme
+typedef unsigned char uint8_t; //fixme
 
 enum artifact_e : uint16_t {
 	ARTIFACT_NONE = 0,
@@ -163,6 +166,8 @@ enum artifact_effect_e : uint8_t {
 #include "core/hero.h"
 
 enum frequency_e : uint8_t;
+enum skill_e : uint8_t;
+enum resource_e : uint8_t;
 
 struct artifact_effect_t {
 	artifact_effect_e type = EFFECT_NONE;
@@ -200,7 +205,8 @@ struct artifact_t {
 	static spell_e get_spell_scroll_spell_id(artifact_e artifact_id);
 	static artifact_e get_artifact_id_for_spell_scroll(spell_e spell_id);
 	
-	static std::string get_slot_name(artifact_slot_e slot);
+	static std::string get_slot_name(artifact_slot_e slot, bool include_slot_text = true);
+	static std::string get_rarity_name(artifact_rarity_e rarity);
 	bool is_empty() const;
 	bool does_slot_match(artifact_slot_e artifact_slot) const;
 	int8_t get_attack_bonus() const;

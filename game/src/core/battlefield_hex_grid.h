@@ -4,11 +4,9 @@
 
 #include <set>
 #include <vector>
-//fixme
-#include <tuple>
 #include <cmath>
 
-typedef std::pair<sint, sint> point_t;
+typedef std::pair<int, int> point_t;
 typedef std::pair<int8_t, int8_t> hex_location_t;
 typedef std::pair<float, float> pointf_t;
 typedef std::pair<double, double> pointd_t;
@@ -19,7 +17,7 @@ struct battlefield_hex_t {
 	/*const*/ int8_t x;
 	/*const*/ int8_t y;
 	bool passable = true;
-	//sint elevation;
+	//int elevation;
 	//effects (e.g. quicksand, firewall, etc.)
 	battlefield_unit_t* unit = nullptr;
 };
@@ -53,55 +51,55 @@ struct battlefield_hex_grid_t {
 		}
 	}
 	
-	static point_t offset_to_axial(sint x, sint y) {
+	static point_t offset_to_axial(int x, int y) {
 		auto q = x - (y + (y & 1)) / 2;
 		auto r = y;
 		return point_t(q, r);
 	}
 	
-	static point_t axial_to_offset(sint q, sint r) {
+	static point_t axial_to_offset(int q, int r) {
 		auto x = q + (r + (r & 1)) / 2;
 		auto y = r;
 		return point_t(x, y);
 	}
-	//sint axial_distance()
+	//int axial_distance()
 
-	static pointf_t hex_to_pixel(sint x, sint y, float radius) {
+	static pointf_t hex_to_pixel(int x, int y, float radius) {
 		auto xpos = radius * std::sqrt(3) * (x - 0.5 * (y & 1));
 		auto ypos = radius * 3 / 2 * y;
 		return pointf_t((float)xpos, (float)ypos);
 	}
 	
-	static pointd_t hex_to_pixel_d(sint x, sint y, double radius) {
+	static pointd_t hex_to_pixel_d(int x, int y, double radius) {
 		auto xpos = radius * std::sqrt(3) * (x - 0.5 * (y & 1));
 		auto ypos = radius * 3 / 2 * y;
 		return pointd_t(xpos, ypos);
 	}
 	
-	static sint distance(sint x1, sint y1, sint x2, sint y2) {
+	static int distance(int x1, int y1, int x2, int y2) {
 		auto a = offset_to_axial(x1, y1);
 		auto b = offset_to_axial(x2, y2);
 		point_t p(a.first - b.first, a.second - b.second);
 		return (abs(p.first) + abs(p.first + p.second) + abs(p.second)) / 2;
 	}
 
-	static bool is_in_radius_of(sint x1, sint y1, sint x2, sint y2, sint radius) {
+	static bool is_in_radius_of(int x1, int y1, int x2, int y2, int radius) {
 		return distance(x1, y1, x2, y2) > radius ? false : true;
 	}
 
-	battlefield_hex_t* get_hex(sint x, sint y) {
-		if(x < 0 || y < 0 || x >= (sint)game_config::BATTLEFIELD_WIDTH || y >= (sint)game_config::BATTLEFIELD_HEIGHT)
+	battlefield_hex_t* get_hex(int x, int y) {
+		if(x < 0 || y < 0 || x >= (int)game_config::BATTLEFIELD_WIDTH || y >= (int)game_config::BATTLEFIELD_HEIGHT)
 			return nullptr;
 
 		return &hexes[x][y];
 	}
 
-	battlefield_hex_t* pixel_to_hex(sint xpos, sint ypos, float radius) {
+	battlefield_hex_t* pixel_to_hex(int xpos, int ypos, float radius) {
 		auto a = pixel_to_hex_coords(xpos, ypos, radius);
 		return get_hex(a.first, a.second);
 	}
 	
-	static point_t pixel_to_hex_coords(sint xpos, sint ypos, float radius) {
+	static point_t pixel_to_hex_coords(int xpos, int ypos, float radius) {
 		float q = (std::sqrt(3) / 3 * xpos - 1. / 3 * ypos) / radius;
 		float r = (2. / 3 * ypos) / radius;
 		
@@ -128,18 +126,18 @@ struct battlefield_hex_grid_t {
 		return axial_to_offset(rx, rz);
 	}
 
-//	static point_t pixel_to_hex_coords(sint xpos, sint ypos, float radius) {
+//	static point_t pixel_to_hex_coords(int xpos, int ypos, float radius) {
 //		auto q = (std::sqrt(3) / 3 * xpos - 1. / 3 * ypos) / radius;
 //		auto r = (2. / 3 * ypos) / radius;
 //
 //		return axial_to_offset(q, r);
 //	}
-	const battlefield_hex_t* get_adjacent_hex(sint x, sint y, battlefield_direction_e direction, bool) const {
+	const battlefield_hex_t* get_adjacent_hex(int x, int y, battlefield_direction_e direction, bool) const {
 		return (const battlefield_hex_t*)((battlefield_hex_grid_t*)this)->get_adjacent_hex(x, y, direction);
 	}
 	
-	battlefield_hex_t* get_adjacent_hex(sint x, sint y, battlefield_direction_e direction) {
-		sint parity = y & 1;
+	battlefield_hex_t* get_adjacent_hex(int x, int y, battlefield_direction_e direction) {
+		int parity = y & 1;
 		switch(direction) {
 		case TOPLEFT:
 			return get_hex(parity ? x - 1 : x, y - 1);
@@ -158,11 +156,11 @@ struct battlefield_hex_grid_t {
 		}
 	}
 
-	battlefield_direction_e get_adjacent_hex_direction(sint from_x, sint from_y, sint to_x, sint to_y) {
+	battlefield_direction_e get_adjacent_hex_direction(int from_x, int from_y, int to_x, int to_y) {
 		auto dx = to_x - from_x;
 		auto dy = to_y - from_y;
 
-		sint parity = from_y & 1;
+		int parity = from_y & 1;
 
 		if (dy == -1) {
 			if(parity == 0) {
@@ -202,9 +200,9 @@ struct battlefield_hex_grid_t {
 		return TOPLEFT;
 	}
 
-	std::vector<battlefield_hex_t*> get_neighbors(sint x, sint y, bool only_traversable = false) {
+	std::vector<battlefield_hex_t*> get_neighbors(int x, int y, bool only_traversable = false) {
 		std::vector<battlefield_hex_t*> neighbor_hexes;
-		if(x < 0 || y < 0 || x > (sint)game_config::BATTLEFIELD_WIDTH || y > (sint)game_config::BATTLEFIELD_HEIGHT)
+		if(x < 0 || y < 0 || x > (int)game_config::BATTLEFIELD_WIDTH || y > (int)game_config::BATTLEFIELD_HEIGHT)
 			return neighbor_hexes;
 
 		battlefield_hex_t* h = nullptr;
@@ -217,9 +215,9 @@ struct battlefield_hex_grid_t {
 		return neighbor_hexes;
 	}
 
-	std::vector<battlefield_hex_t*> get_neighbors(sint x, sint y, int radius, bool include_origin = true) {
+	std::vector<battlefield_hex_t*> get_neighbors(int x, int y, int radius, bool include_origin = true) {
 		std::vector<battlefield_hex_t*> neighbor_hexes;
-		if(x < 0 || y < 0 || x >(sint)game_config::BATTLEFIELD_WIDTH || y >(sint)game_config::BATTLEFIELD_HEIGHT)
+		if(x < 0 || y < 0 || x >(int)game_config::BATTLEFIELD_WIDTH || y >(int)game_config::BATTLEFIELD_HEIGHT)
 			return neighbor_hexes;
 
 		for(uint ny = 0; ny < game_config::BATTLEFIELD_HEIGHT; ny++) {
@@ -237,7 +235,7 @@ struct battlefield_hex_grid_t {
 		return neighbor_hexes;
 	}
 	
-	std::set<battlefield_hex_t*> get_movement_range_flyer(const battlefield_unit_t& unit, sint radius);		
-	std::set<battlefield_hex_t*> get_movement_range(const battlefield_unit_t& unit, sint radius, bool flyer);
+	std::set<battlefield_hex_t*> get_movement_range_flyer(const battlefield_unit_t& unit, int radius);
+	std::set<battlefield_hex_t*> get_movement_range(const battlefield_unit_t& unit, int radius, bool flyer);
 	
 };

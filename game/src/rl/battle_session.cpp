@@ -1,10 +1,7 @@
-#include "rl/battle_session.h"
+#include "battle_session.h"
 
 #include <algorithm>
 #include <cassert>
-
-namespace rl {
-namespace combat {
 
 namespace {
 std::vector<player_e> get_unique_human_players(const combat_scenario_spec_t& spec) {
@@ -73,13 +70,13 @@ battle_result_e combat_session_t::step() {
         return simulator.step();
 }
 
-bool combat_session_t::apply_action(const combat_action_spec_t& action) {
+bool combat_session_t::apply_action(combat_action_type_t action) {
         auto& battlefield_instance = simulator.battlefield();
         auto* active_unit = battlefield_instance.get_active_unit();
         if(!active_unit)
                 return false;
 
-        switch(action.type) {
+        switch(action) {
         case combat_action_type_t::WAIT:
                 return battlefield_instance.wait_unit(active_unit);
         case combat_action_type_t::DEFEND:
@@ -91,38 +88,6 @@ bool combat_session_t::apply_action(const combat_action_spec_t& action) {
         }
 
         return false;
-}
-
-hero_t& combat_session_t::attacker() {
-        return attacker_hero;
-}
-
-const hero_t& combat_session_t::attacker() const {
-        return attacker_hero;
-}
-
-hero_t& combat_session_t::defender() {
-        return defender_hero;
-}
-
-const hero_t& combat_session_t::defender() const {
-        return defender_hero;
-}
-
-battlefield_t& combat_session_t::battlefield() {
-        return simulator.battlefield();
-}
-
-const battlefield_t& combat_session_t::battlefield() const {
-        return simulator.battlefield();
-}
-
-game_t& combat_session_t::game() {
-        return simulator.game();
-}
-
-const game_t& combat_session_t::game() const {
-        return simulator.game();
 }
 
 void combat_session_t::apply_loadout(const hero_loadout_spec_t& spec, hero_t& hero, bool is_attacker) {
@@ -171,9 +136,6 @@ void combat_session_t::apply_spells_and_skills(const hero_loadout_spec_t& spec, 
 
 void combat_session_t::configure_player_control() {
         auto humans = get_unique_human_players(scenario_spec);
-        assign_human_players(game(), humans);
+        assign_human_players(simulator.game(), humans);
 }
-
-} // namespace combat
-} // namespace rl
 

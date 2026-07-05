@@ -1,6 +1,5 @@
 #pragma once
 
-#include "core/utils.h"
 #include "core/game_config.h"
 #include "core/creature.h"
 #include "core/spell.h"
@@ -23,27 +22,12 @@ struct troop_t {
 	uint16_t stack_size = 0;
 	unit_type_e unit_type = UNIT_UNKNOWN;
 
-	//std::string get_unit_name() const;
-	//uint get_base_max_hitpoints() const;
-	//uint get_base_attack() const;
-	//uint get_base_defense() const;
-	//uint get_base_speed() const;
-	//uint get_base_initiative() const;
-	//uint get_base_min_damage() const;
-	//uint get_base_max_damage() const;
-
 	void clear() { unit_type = UNIT_UNKNOWN; stack_size = 0; }
 	bool is_empty() const { return /*unit_type == UNIT_UNKNOWN || */stack_size == 0; }
-	bool is_turret() const {
-		return (unit_type == UNIT_TURRET_MAIN || unit_type == UNIT_TURRET_LEFT || unit_type == UNIT_TURRET_RIGHT);
-	}
-
-	bool is_war_machine() const {
-		return (unit_type == UNIT_CATAPULT || unit_type == UNIT_BALLISTA);
-	}
-
+	bool is_turret() const { return (unit_type == UNIT_TURRET_MAIN || unit_type == UNIT_TURRET_LEFT || unit_type == UNIT_TURRET_RIGHT); }
+	bool is_war_machine() const { return (unit_type == UNIT_CATAPULT || unit_type == UNIT_BALLISTA); }
 	bool is_turret_or_war_machine() const { return is_turret() || is_war_machine(); }
-	//bool operator==(const troop_t&) const = default;
+	bool is_summoned_creature() const { return game_config::get_creature(unit_type).has_inherent_buff(BUFF_SUMMONED); }
 
 	uint get_base_initiative() const {
 		return game_config::get_creature(unit_type).initiative;

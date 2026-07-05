@@ -1,6 +1,6 @@
 #pragma once
 
-#include "rl/battle_session.h"
+#include "battle_session.h"
 
 #include <array>
 #include <cstddef>
@@ -13,9 +13,6 @@
 #endif
 
 #include <torch/torch.h>
-
-namespace rl {
-namespace combat {
 
 constexpr std::size_t MAX_ARMY_TROOPS = 16;
 constexpr std::size_t STACK_FEATURES = 15;
@@ -64,10 +61,7 @@ combat_observation_t capture_observation(const combat_session_t& session);
 
 std::size_t observation_feature_count();
 
-torch::Tensor observation_to_tensor(const combat_observation_t& observation, torch::Device device = torch::kCPU);
+torch::Tensor observation_to_tensor(const combat_observation_t& observation, torch::Device device = torch::kCUDA);
 
-torch::Tensor stack_to_tensor(const stack_observation_t& stack, torch::Device device = torch::kCPU);
-
-} // namespace combat
-} // namespace rl
+torch::Tensor stack_to_tensor(const stack_observation_t& stack, torch::Device device = torch::kCUDA);
 

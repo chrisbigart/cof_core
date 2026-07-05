@@ -1,11 +1,12 @@
 #pragma once
 
-#include "core/utils.h"
 #include "core/game_config.h"
 #include "core/battlefield_hex_grid.h"
 #include "core/troop.h"
 #include "core/hero.h"
 #include "core/adventure_map.h"
+
+#include <unordered_set>
 
 enum battle_action_e {
 	ACTION_NONE,
@@ -28,7 +29,9 @@ enum battle_action_e {
 	ACTION_BUFF_EXPIRED,
 	ACTION_UNIT_UPDATE,
 	ACTION_UNIT_LIFESTEAL,
-	ACTION_CATAPULT_FIRED_AT_WALL
+	ACTION_UNIT_REINCARNATED,
+	ACTION_CATAPULT_FIRED_AT_WALL,
+	ACTION_COMBAT_ENDED
 };
 
 enum castle_wall_section_e : uint8_t {
@@ -67,18 +70,20 @@ struct battlefield_unit_t : troop_t {
 	int8_t x = -1;
 	int8_t y = -1;
 	int8_t retaliations_remaining = 1;
+	uint8_t spell_casts_remaining = 0;
+	uint8_t resurrection_count = 0;
 	uint16_t original_stack_size = 0;
 	uint16_t unit_health = 0;
-	uint8_t resurrection_count = 0;
+	std::array<buff_t, game_config::MAX_UNIT_BUFFS> buffs;
 	//bitfield / enum
+	bool is_attacker = false;
+	bool was_reincarnated = false;
 	bool was_summoned = false;
 	bool has_waited = false;
 	bool has_moved = false;
 	bool has_cast_spell = false;
 	bool has_moraled = false;
 	bool has_defended = false;
-	bool is_attacker = false;
-	std::array<buff_t, game_config::MAX_UNIT_BUFFS> buffs;
 
 	bool is_disabled(int round_offset = 0) const {
 		for(const auto& b : buffs) {
@@ -361,8 +366,10 @@ struct combat_stats_t {
 	uint32_t total_spell_damage_enemy_resisted = 0;
 	uint32_t total_spell_damage_received = 0;
 	uint32_t total_spell_damage_resisted = 0;
-	uint16_t total_morale_procs = 0;
-	uint16_t total_luck_procs = 0;
+	uint16_t total_positive_morale_procs = 0;
+	uint16_t total_negative_morale_procs = 0;
+	uint16_t total_positive_luck_procs = 0;
+	uint16_t total_negative_luck_procs = 0;
 	uint32_t total_units_resurrected = 0;
 	uint16_t total_units_summoned = 0;
 	uint32_t total_mana_spent = 0;
@@ -387,6 +394,12 @@ struct combat_stats_t {
 	uint16_t armageddon_5000_damage = 0;
 	uint16_t resurrection_1000hp = 0;
 	uint32_t max_damage_single_melee_attack = 0;
+	uint16_t chain_lightning_5kills = 0;
+	uint16_t meteor_shower_75kills = 0;
+	uint16_t frost_kill_fire_immune = 0;
+	uint16_t friendly_fire_spell_hits = 0;
+	uint32_t friendly_fire_spell_damage = 0;
+	uint16_t unique_spells_cast = 0;
 };
 
 struct battlefield_t {
@@ -446,6 +459,8 @@ struct battlefield_t {
 	combat_stats_t total_stats;
 	combat_stats_t attacker_stats;
 	combat_stats_t defender_stats;
+	std::unordered_set<spell_e> attacker_spells_cast;
+	std::unordered_set<spell_e> defender_spells_cast;
 
 	std::vector<battlefield_unit_t*> unit_move_queue;
 	std::vector<move_queue_slot_t> unit_move_queue_with_markers;
@@ -487,15 +502,17 @@ struct battlefield_t {
 	std::pair<uint32_t, uint16_t> calculate_healing_to_stack(hero_t* caster, spell_e spell_id, uint32_t healing, battlefield_unit_t& unit, bool can_resurrect);
 	std::pair<uint32_t, uint16_t> apply_healing_to_stack(uint32_t healing, battlefield_unit_t& unit, bool can_resurrect, bool simulate = false);
 	
-        spell_result_e cast_spell(hero_t* caster, spell_e spell_id, int target_x = -1, int target_y = -1, battlefield_unit_t* target = nullptr);
+	spell_result_e cast_spell(hero_t* caster, spell_e spell_id, int target_x = -1, int target_y = -1, battlefield_unit_t* target = nullptr);
+	spell_result_e cast_spell(battlefield_unit_t* caster, spell_e spell_id = SPELL_UNKNOWN, int target_x = -1, int target_y = -1, battlefield_unit_t* target = nullptr);
 	std::vector<battlefield_unit_t*> cast_spell_on_random_troops(army_t::battlefield_unit_group_t& troops, spell_e spell_id, int duration, int number_of_troops_affected = 1);
 	bool can_hero_cast_spell(hero_t* caster, spell_e spell_id);
-	bool restore_hero_mana(hero_t* hero, int mana_to_restore, talent_e talent = TALENT_NONE);
+	bool restore_hero_mana(hero_t* hero, int mana_to_restore, talent_e talent = TALENT_NONE, artifact_e artifact = ARTIFACT_NONE);
 	void init_hero_hero_battle(hero_t* attacker, hero_t* defender, bool is_deathmatch_battle = false);
 	void init_hero_town_battle(hero_t* attacker, town_t* defender, bool is_deathmatch_battle = false);
 	void init_hero_monster_battle(hero_t* attacker, map_monster_t* defender);
 	void init_hero_creature_bank_battle(hero_t* attacker, army_t& defender, interactable_object_t* object);
 	void setup_obstacles(bool only_clear = false);
+	void reset_castle_walls();
 	void reset();
 	void start_combat();
 	bool round_ended() const;
@@ -510,13 +527,12 @@ struct battlefield_t {
 		
 	void compute_next_unit_to_move();
 	bool recompute_unit_move_queue();
-        battlefield_unit_t* get_active_unit();
-        const battlefield_unit_t* get_active_unit() const;
+	battlefield_unit_t* get_active_unit();
 	player_e get_player_of_active_unit();
 
 	bool is_attackers_turn();
-	/*uint*/ bool move_unit(battlefield_unit_t& unit, sint x, sint y, bool finalize_action = true);
-	std::set<battlefield_hex_t*> get_movement_range(battlefield_unit_t& unit, sint radius, bool flyer);
+	bool move_unit(battlefield_unit_t& unit, int x, int y, bool finalize_action = true);
+	std::set<battlefield_hex_t*> get_movement_range(battlefield_unit_t& unit, int radius, bool flyer);
 	route_t get_unit_route(const battlefield_unit_t& unit, uint target_x, uint target_y);
 	route_t get_unit_route_xy(const battlefield_unit_t& moving_unit, uint source_x, uint source_y, uint target_x, uint target_y);
 	std::pair<battlefield_unit_t*, battlefield_hex_t*> get_target_in_range(battlefield_unit_t* acting_unit);
@@ -540,15 +556,15 @@ struct battlefield_t {
 	bool can_troop_morale(const battlefield_unit_t& unit);
 	int get_unit_morale_chance(const battlefield_unit_t& unit) const;
 	bool will_defender_retaliate(battlefield_unit_t& attacker, battlefield_unit_t& defender);
-	bool attack_unit(battlefield_unit_t& attacker, battlefield_unit_t* target_unit, bool use_ranged_attack, int target_x, int target_y, battlefield_hex_t* source_movement_hex = nullptr);
-	bool move_and_attack_unit(battlefield_unit_t& attacker, battlefield_unit_t& defender, sint from_x, sint from_y);
+	bool attack_unit(battlefield_unit_t& attacker, battlefield_unit_t* target_unit, bool use_ranged_attack, int hex_x, int hex_y, battlefield_hex_t* source_movement_hex = nullptr, int target_x = -1, int target_y = -1);
+	bool move_and_attack_unit(battlefield_unit_t& attacker, battlefield_unit_t& defender, int from_x, int from_y, int target_x, int target_y);
 	void handle_post_attack_effects(battlefield_unit_t& attacker, battlefield_unit_t& defender, uint32_t damage, uint16_t kills, bool was_melee_attack, bool was_lucky_strike);
 	double get_ranged_attack_penalty(battlefield_unit_t& attacker, int hex_x, int hex_y) const;
 	double get_ranged_attack_penalty(battlefield_unit_t& attacker, battlefield_unit_t& defender) const;
 	uint32_t apply_ranged_attack_penalty(uint32_t damage, battlefield_unit_t& attacker, battlefield_unit_t& defender);
 	uint32_t apply_shooter_melee_penalty(uint32_t damage, battlefield_unit_t& attacker, battlefield_unit_t& defender);
-	battlefield_unit_t* get_dead_unit_on_hex(sint x, sint y);
-	battlefield_unit_t* get_unit_on_hex(sint x, sint y);
+	battlefield_unit_t* get_dead_unit_on_hex(int x, int y);
+	battlefield_unit_t* get_unit_on_hex(int x, int y);
 	battlefield_unit_t* get_unit_on_hex(hex_location_t point);
 	battlefield_unit_t* get_unit_by_id(int8_t unit_id);
 	battle_result_e compute_quick_combat();
@@ -556,7 +572,7 @@ struct battlefield_t {
 	bool troops_remain();
 	uint32_t get_winning_hero_xp() const;
 	void calculate_necromancy_results(battle_result_e result);
-	void calculate_captured_artifacts(battle_result_e result);	
+	void calculate_captured_artifacts(battle_result_e result);
 	troop_group_t get_remaining_troops_attacker() const;
 	troop_group_t get_remaining_troops_defender() const;
 };

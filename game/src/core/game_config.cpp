@@ -4,6 +4,8 @@
 #include "core/town.h"
 #include "core/utils.h"
 #include "core/game.h"
+#include "core/achievements.h"
+#include "core/brushes.h"
 
 #include <iostream>
 #include <sstream>
@@ -11,6 +13,7 @@
 #include <cassert>
 
 #include "core/qt_headers.h"
+#include "core/utils_enum.h"
 
 std::vector<object_info_t> game_config::objects;
 std::vector<creature_t> game_config::creatures;
@@ -19,10 +22,14 @@ std::vector<artifact_t> game_config::artifacts;
 std::vector<skill_t> game_config::skills;
 std::vector<hero_specialty_t> game_config::specialties;
 std::vector<building_t> game_config::buildings;
+std::vector<achievement_t> game_config::achievements;
 std::vector<spell_t> game_config::spells;
 std::vector<hero_t> game_config::heroes;
 std::vector<buff_info_t> game_config::buff_info;
 std::vector<std::pair<town_type_e, std::string>> game_config::town_names;
+std::vector<tree_brush_t> game_config::tree_brushes;
+std::vector<mountain_brush_t> game_config::mountain_brushes;
+std::vector<decoration_brush_t> game_config::decoration_brushes;
 
 int game_config::load_game_data(const std::string& path_prefix) {
 	objects.clear();
@@ -36,20 +43,30 @@ int game_config::load_game_data(const std::string& path_prefix) {
 	buff_info.clear();
 	town_names.clear();
 	specialties.clear();
+	buildings.clear();
+	tree_brushes.clear();
+	mountain_brushes.clear();
+	decoration_brushes.clear();
 
-	game_config::load_object_data(path_prefix);
-	game_config::load_creatures(path_prefix);
-	game_config::load_talents(path_prefix);
-	game_config::load_skills(path_prefix);
-	game_config::load_spells(path_prefix);
-	game_config::load_artifacts(path_prefix);
-	game_config::load_heroes(path_prefix);
-	game_config::load_buildings(path_prefix);
-	game_config::load_buffs(path_prefix);
-	game_config::load_town_names(path_prefix);
-	game_config::load_specialties(path_prefix);
+	int retval = 0;
+
+	retval |= game_config::load_object_data(path_prefix);
+	retval |= game_config::load_creatures(path_prefix);
+	retval |= game_config::load_talents(path_prefix);
+	retval |= game_config::load_skills(path_prefix);
+	retval |= game_config::load_spells(path_prefix);
+	retval |= game_config::load_artifacts(path_prefix);
+	retval |= game_config::load_heroes(path_prefix);
+	retval |= game_config::load_buildings(path_prefix);
+	retval |= game_config::load_buffs(path_prefix);
+	retval |= game_config::load_town_names(path_prefix);
+	retval |= game_config::load_specialties(path_prefix);
+	retval |= game_config::load_achievements(path_prefix);
+	retval |= game_config::load_tree_brushes(path_prefix);
+	retval |= game_config::load_mountain_brushes(path_prefix);
+	retval |= game_config::load_decoration_brushes(path_prefix);
 	
-	return 0;
+	return retval;
 }
 
 using utils::get_enum_value;
@@ -133,7 +150,9 @@ int game_config::load_creatures(const std::string& path_prefix) {
 }
 
 int game_config::load_object_data(const std::string& path_prefix) {
-	QString objects_file = QString::fromStdString(path_prefix) + "config/objects_NEW.tsv";
+	objects.clear();
+
+	QString objects_file = QString::fromStdString(path_prefix) + "config/objects.tsv";
 	QFile file(objects_file);
 	if(!file.open(QFile::ReadOnly)) {
 		std::cerr << "Could not open objects file: " << file.errorString().toStdString() << std::endl;
@@ -145,38 +164,191 @@ int game_config::load_object_data(const std::string& path_prefix) {
 	while(!f.atEnd()) {
 		auto line = f.readLine(1024);
 		auto split = line.split('\t');
-		if(split.length() != 10) //we got a problem
+		if(split.length() != 9) //we got a problem
 			continue;
 		
 		//more validation needed
 		int pos = 0;
 		object_info_t object_info;
 
-		object_info.asset_id = split[pos++].toInt();
-		object_info.name = split[pos++].toStdString();
-		object_info.filename = split[pos++].toStdString();
 		object_info.object_metatype = get_enum_value<object_metatype_e>(split[pos++]);
 		object_info.editor_brush_category = get_enum_value<editor_brush_category_e>(split[pos++]);
-		
-		QString object_subtype_str = split[pos++];
-		if(object_info.object_metatype == OBJECT_METATYPE_TERRAIN)
-			object_info.terrain_type = get_enum_value<terrain_type_e>(object_subtype_str);
-		else
-			object_info.interactable_object_type = get_enum_value<interactable_object_e>(object_subtype_str);
-
-
-		object_info.center_x = split[pos++].toUInt();
-		object_info.center_y = split[pos++].toUInt();
+		object_info.name = split[pos++].toStdString();
+		object_info.interactable_object_type = get_enum_value<interactable_object_e>(split[pos++]);
+		object_info.asset_id = split[pos++].toInt();
+		object_info.allowed_terrain_types = split[pos++].toUShort();
 		object_info.passability = split[pos++].toULongLong();
 		object_info.interactability = split[pos++].toULongLong();
-
-		if(object_info.object_metatype == OBJECT_METATYPE_INTERACTABLE)
-			adventure_map_t::interactivity_map[object_info.asset_id] = object_info.interactability;
-
+		object_info.tree_placement = split[pos++].toULongLong();
 
 		objects.push_back(object_info);
 	}
+	
+	/////////
+	return 0;
+	
+	for(int i = 0; i < magic_enum::enum_count<interactable_object_e>(); i++) {
+		auto type = (interactable_object_e)i;
+		object_info_t info;
+		info.interactable_object_type = type;
+		info.editor_brush_category = CATEGORY_OBJECT;
+		info.passability.flip();
+		info.name = utils::formatted_name_from_enum(type).toStdString();
+		objects.push_back(info);
+	}
 
+
+	return 0;
+}
+
+int game_config::load_tree_brushes(const std::string& path_prefix) {
+	QString tree_brushes_file = QString::fromStdString(path_prefix) + "config/tree_brushes.tsv";
+	QFile file(tree_brushes_file);
+	if(!file.open(QFile::ReadOnly)) {
+		std::cerr << "Could not open tree brushes file: " << file.errorString().toStdString() << std::endl;
+		return -1;
+	}
+
+	tree_brushes.clear();
+
+	QTextStream f(&file);
+
+	while(!f.atEnd()) {
+		tree_brush_t brush;
+
+		auto line = f.readLine(2048);
+		auto split = line.split('\t');
+		
+		int pos = 0;
+		
+		auto terrain = split[pos++].split(',');
+		for(const auto& t : terrain) {
+			auto t_type = get_enum_value<terrain_type_e>(t.trimmed());
+			brush.native_terrain_types.set(t_type);
+		}
+
+		while((split.size() - pos) >= 10) {
+			tree_info_t info;
+			
+			info.tree_type = get_enum_value<tree_type_e>(split[pos++]);
+			info.x = split[pos++].toFloat();
+			info.y = split[pos++].toFloat();
+			info.z = split[pos++].toFloat();
+			info.pitch = split[pos++].toFloat();
+			info.yaw = split[pos++].toFloat();
+			info.roll = split[pos++].toFloat();
+			info.sx = split[pos++].toFloat();
+			info.sy = split[pos++].toFloat();
+			info.sz = split[pos++].toFloat();
+
+			brush.tree_placement_info.push_back(info);
+		}
+		
+		tree_brushes.push_back(brush);
+	}
+	
+	return 0;
+}
+
+int game_config::load_mountain_brushes(const std::string& path_prefix) {
+	QString mountain_brushes_file = QString::fromStdString(path_prefix) + "config/mountain_brushes.tsv";
+	QFile file(mountain_brushes_file);
+	if(!file.open(QFile::ReadOnly)) {
+		std::cerr << "Could not open mountain brushes file: " << file.errorString().toStdString() << std::endl;
+		return -1;
+	}
+
+	mountain_brushes.clear();
+
+	QTextStream f(&file);
+
+	while(!f.atEnd()) {
+		mountain_brush_t brush;
+
+		auto line = f.readLine(2048);
+		auto split = line.split('\t');
+		
+		int pos = 0;
+		
+		auto terrain = split[pos++].split(',');
+		for(const auto& t : terrain) {
+			auto t_type = get_enum_value<terrain_type_e>(t.trimmed());
+			brush.native_terrain_types.set(t_type);
+		}
+		brush.passability = split[pos++].toULongLong();
+		brush.tree_placement = split[pos++].toULongLong();
+
+		while((split.size() - pos) >= 10) {
+			mountain_info_t info;
+			
+			info.mountain_type = get_enum_value<mountain_type_e>(split[pos++]);
+			info.x = split[pos++].toFloat();
+			info.y = split[pos++].toFloat();
+			info.z = split[pos++].toFloat();
+			info.pitch = split[pos++].toFloat();
+			info.yaw = split[pos++].toFloat();
+			info.roll = split[pos++].toFloat();
+			info.sx = split[pos++].toFloat();
+			info.sy = split[pos++].toFloat();
+			info.sz = split[pos++].toFloat();
+
+			brush.mountain_placement_info.push_back(info);
+		}
+		
+		mountain_brushes.push_back(brush);
+	}
+	
+	return 0;
+}
+
+int game_config::load_decoration_brushes(const std::string& path_prefix) {
+	QString decoration_brushes_file = QString::fromStdString(path_prefix) + "config/decoration_brushes.tsv";
+	QFile file(decoration_brushes_file);
+	if(!file.open(QFile::ReadOnly)) {
+		std::cerr << "Could not open decoration brushes file: " << file.errorString().toStdString() << std::endl;
+		return -1;
+	}
+
+	decoration_brushes.clear();
+
+	QTextStream f(&file);
+
+	while(!f.atEnd()) {
+		decoration_brush_t brush;
+
+		auto line = f.readLine(2048);
+		auto split = line.split('\t');
+		
+		int pos = 0;
+		
+		auto terrain = split[pos++].split(',');
+		for(const auto& t : terrain) {
+			auto t_type = get_enum_value<terrain_type_e>(t.trimmed());
+			brush.native_terrain_types.set(t_type);
+		}
+		brush.passability = split[pos++].toULongLong();
+		brush.tree_placement = split[pos++].toULongLong();
+
+		while((split.size() - pos) >= 10) {
+			decoration_info_t info;
+			
+			//info.decoration_type = get_enum_value<decoration_type_e>(split[pos++]);
+			info.x = split[pos++].toFloat();
+			info.y = split[pos++].toFloat();
+			info.z = split[pos++].toFloat();
+			info.pitch = split[pos++].toFloat();
+			info.yaw = split[pos++].toFloat();
+			info.roll = split[pos++].toFloat();
+			info.sx = split[pos++].toFloat();
+			info.sy = split[pos++].toFloat();
+			info.sz = split[pos++].toFloat();
+
+			brush.decoration_placement_info.push_back(info);
+		}
+		
+		decoration_brushes.push_back(brush);
+	}
+	
 	return 0;
 }
 
@@ -352,16 +524,16 @@ int game_config::load_heroes(const std::string& path_prefix) {
 
 		hero.gender = (split[pos++] == "Male") ? HERO_GENDER_MALE : HERO_GENDER_FEMALE;
 		hero.race = split[pos++].toStdString();
-		hero.appereance.class_appearance = get_enum_value<hero_class_appearance_e>(split[pos++]);
-		hero.appereance.body = get_enum_value<hero_body_appearance_e>(split[pos++]);
-		hero.appereance.face = get_enum_value<hero_face_appearance_e>(split[pos++]);
-		hero.appereance.eye_color = get_enum_value<hero_eyes_appearance_e>(split[pos++]);
-		hero.appereance.beard = get_enum_value<hero_beard_appearance_e>(split[pos++]);
-		hero.appereance.eyebrows = get_enum_value<hero_eyebrow_appearance_e>(split[pos++]);
-		hero.appereance.ears = get_enum_value<hero_ears_appearance_e>(split[pos++]);
-		hero.appereance.skin = get_enum_value<hero_skin_appearance_e>(split[pos++]);
-		hero.appereance.hair = get_enum_value<hero_hair_appearance_e>(split[pos++]);
-		hero.appereance.hair_color = get_enum_value<hero_hair_color_appearance_e>(split[pos++]);
+		hero.appearance.class_appearance = get_enum_value<hero_class_appearance_e>(split[pos++]);
+		hero.appearance.body = get_enum_value<hero_body_appearance_e>(split[pos++]);
+		hero.appearance.face = get_enum_value<hero_face_appearance_e>(split[pos++]);
+		hero.appearance.eye_color = get_enum_value<hero_eyes_appearance_e>(split[pos++]);
+		hero.appearance.beard = get_enum_value<hero_beard_appearance_e>(split[pos++]);
+		hero.appearance.eyebrows = get_enum_value<hero_eyebrow_appearance_e>(split[pos++]);
+		hero.appearance.ears = get_enum_value<hero_ears_appearance_e>(split[pos++]);
+		hero.appearance.skin = get_enum_value<hero_skin_appearance_e>(split[pos++]);
+		hero.appearance.hair = get_enum_value<hero_hair_appearance_e>(split[pos++]);
+		hero.appearance.hair_color = get_enum_value<hero_hair_color_appearance_e>(split[pos++]);
 		
 		hero.stat_distribution_pre10 = hero_t::get_stat_distribution_for_class(hero.hero_class, 1);
 		hero.stat_distribution_post10 = hero_t::get_stat_distribution_for_class(hero.hero_class, 20);
@@ -675,6 +847,51 @@ int game_config::load_skills(const std::string& path_prefix) {
 	
 	return 0;
 }
+
+int game_config::load_achievements(const std::string& path_prefix) {
+	QString achievements_data = QString::fromStdString(path_prefix) + "config/achievements.tsv";
+	QFile file(achievements_data);
+	if(!file.open(QFile::ReadOnly)) {
+		std::cerr << "Could not open achievements file: " << file.errorString().toStdString() << std::endl;
+		return false;
+	}
+
+	achievements.clear();
+
+	QTextStream f(&file);
+
+	while(!f.atEnd()) {
+		achievement_t achievement;
+
+		auto line = f.readLine(4096);
+		auto split = line.split('\t');
+		if(split.length() != 22) //we got a problem
+			continue;
+
+		//more validation needed
+		int pos = 0;
+
+		achievement.id = get_enum_value<achievement_e>(split[pos++]);
+		achievement.type = get_enum_value<achievement_type_e>(split[pos++]);
+		achievement.subtype = get_enum_value<achievement_subtype_e>(split[pos++]);
+		achievement.category = get_enum_value<achievement_category_e>(split[pos++]);
+		achievement.name = split[pos++].toStdString();
+		achievement.asset_id = split[pos++].toStdString();
+		achievement.description = split[pos++].toStdString();
+		pos++;//achievement.rewards = split[pos++].toInt();
+		for(int i = 0; i < 7; i++) {
+			achievement.tiers[i].name = split[pos++].toStdString();
+			achievement.tiers[i].value = split[pos++].toULongLong();
+		}
+
+		achievements.push_back(achievement);
+	}
+
+	return 0;
+}
+
+
+
 //todo:  what we should do is sort these arrays so that the position matches
 //the value of the enum, reducing this to a constant time function
 
@@ -774,18 +991,42 @@ const spell_t& game_config::get_spell(spell_e spell_id) {
 const creature_t& game_config::get_creature(unit_type_e unit_id) {
 	assert(creatures.size() != 0);
 
-	if(unit_id >= creatures.size() || unit_id == 0) {
-		//throw 
-		//log_error("creature with id:" + utils::to_str(unit_id.type_id) + " not found.");
-		for(const auto& cr : creatures) {
-			if(cr.unit_type == unit_id)
-				return cr;
-		}
-
-		return creatures[0];
+	for(const auto& cr : creatures) {
+		if(cr.unit_type == unit_id)
+			return cr;
 	}
 
-	return creatures[unit_id];
+	return creatures[0];
+}
+
+const achievement_t& game_config::get_achievement(achievement_e id) {
+	for(const auto& a : achievements) {
+		if(a.id == id)
+			return a;
+	}
+
+	return achievements[0]; //bad
+}
+
+const object_info_t& game_config::get_object_info(interactable_object_e object_type, int16_t asset_id) {
+	for(const auto& o : objects) {
+		if(o.interactable_object_type == object_type && o.asset_id == asset_id)
+			return o;
+	}
+
+	for(const auto& o : objects) {
+		if(o.interactable_object_type == object_type)
+			return o;
+	}
+
+	return objects[0];
+}
+
+const object_info_t& game_config::get_object_info(interactable_object_t* object) {
+	if(!object)
+		return objects[0];
+		
+	return get_object_info(object->object_type, object->asset_id);
 }
 
 const std::string game_config::get_random_town_name(town_type_e town_type) {

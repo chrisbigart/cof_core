@@ -36,18 +36,56 @@ bool artifact_t::does_slot_match(artifact_slot_e artifact_slot) const {
 	return false;
 }
 
-std::string artifact_t::get_slot_name(artifact_slot_e slot) {
+std::string artifact_t::get_slot_name(artifact_slot_e slot, bool include_slot_text /*= true*/) {
 	auto adjusted_slot = slot;
-	if(adjusted_slot == SLOT_RING_2)
-		adjusted_slot = SLOT_RING;
 	if(adjusted_slot > SLOT_TRINKET)
 		adjusted_slot = SLOT_TRINKET;
-	
-	auto slotname = QString::fromUtf8(magic_enum::enum_name((artifact_slot_e)adjusted_slot).data());
-	slotname.remove("SLOT_");
-	return utils::to_camel_case(slotname.replace('_', ' ').toLower()).toStdString();
+
+	switch (adjusted_slot) {
+		case SLOT_HELM:
+			return (include_slot_text ? QObject::tr("Helm Slot") : QObject::tr("Helm")).toStdString();
+		case SLOT_NECKLACE:
+			return (include_slot_text ? QObject::tr("Necklace Slot") : QObject::tr("Necklace")).toStdString();
+		case SLOT_SHOULDERS:
+			return (include_slot_text ? QObject::tr("Shoulders Slot") : QObject::tr("Shoulders")).toStdString();
+		case SLOT_WEAPON:
+			return (include_slot_text ? QObject::tr("Weapon Slot") : QObject::tr("Weapon")).toStdString();
+		case SLOT_SHIELD:
+			return (include_slot_text ? QObject::tr("Shield Slot") : QObject::tr("Shield")).toStdString();
+		case SLOT_GLOVES:
+			return (include_slot_text ? QObject::tr("Gloves Slot") : QObject::tr("Gloves")).toStdString();
+		case SLOT_RING:
+		case SLOT_RING_2:
+			return (include_slot_text ? QObject::tr("Ring Slot") : QObject::tr("Ring")).toStdString();
+		case SLOT_ARMOUR:
+			return (include_slot_text ? QObject::tr("Armour Slot") : QObject::tr("Armour")).toStdString();
+		case SLOT_BELT:
+			return (include_slot_text ? QObject::tr("Belt Slot") : QObject::tr("Belt")).toStdString();
+		case SLOT_BOOTS:
+			return (include_slot_text ? QObject::tr("Boots Slot") : QObject::tr("Boots")).toStdString();
+		case SLOT_TRINKET:
+			return (include_slot_text ? QObject::tr("Trinket Slot") : QObject::tr("Trinket")).toStdString();
+		default:
+			return QObject::tr("Unknown Slot").toStdString();
+	}
 }
 
+std::string artifact_t::get_rarity_name(artifact_rarity_e rarity) {
+	switch(rarity) {
+		case RARITY_COMMON:
+			return QObject::tr("Common").toStdString();
+		case RARITY_UNCOMMON:
+			return QObject::tr("Uncommon").toStdString();
+		case RARITY_RARE:
+			return QObject::tr("Rare").toStdString();
+		case RARITY_EXCEPTIONAL:
+			return QObject::tr("Exceptional").toStdString();
+		case RARITY_LEGENDARY:
+			return QObject::tr("Legendary").toStdString();
+		default:
+			return QObject::tr("Unknown").toStdString();
+	}
+}
 
 int8_t artifact_t::get_attack_bonus() const {
 	for(auto& e : effects) {

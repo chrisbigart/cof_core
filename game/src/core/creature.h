@@ -1,6 +1,5 @@
 #pragma once
 
-#include "core/utils.h"
 #include "core/game_config.h"
 
 #include <vector>
@@ -43,6 +42,8 @@ enum unit_type_e : uint8_t {
 	UNIT_GENIE,
 	UNIT_MAGE,
 	UNIT_TITAN,
+	UNIT_EFREETI,
+	UNIT_TREANT,
 	//excluded from certain map objects
 	UNIT_GHOST,
 	//'special' units
@@ -51,7 +52,7 @@ enum unit_type_e : uint8_t {
 	UNIT_TURRET_RIGHT,
 	UNIT_CATAPULT,
 	UNIT_BALLISTA,
-	UNIT_CUSTOM
+	UNIT_CUSTOM = 110
 };
 
 enum buff_e : uint8_t {
@@ -182,7 +183,7 @@ struct creature_t {
 	unit_type_e unit_type = UNIT_UNKNOWN;
 	std::string name;
 	std::string name_plural;
-	hero_class_e faction;
+	hero_class_e faction = (hero_class_e)0;//HERO_CLASS_NONE;
 	uint8_t tier = 0;
 	uint16_t asset_id_portrait = 0;
 	unit_type_e reanimates_as_unit_type = UNIT_UNKNOWN;

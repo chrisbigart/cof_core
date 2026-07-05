@@ -1,5 +1,6 @@
 #include "core/lua_api.h"
 #include "core/resource.h"
+#include "core/utils_enum.h"
 
 //probably need to change this
 
@@ -12,7 +13,6 @@ const QList<lua_function_info_t>& get_lua_functions() {
 }
 
 int register_lua_functions(lua_State* L, game_t* game_ptr) {
-
 	lua_functions.push_back({lua::GetCurrentDay, "GetCurrentDay", 0, "Gets the current day as an integer. The first day is 1, and it increments by 1 per day (does not wrap around on a new week.)."});
 	lua_functions.push_back({lua::GetCurrentWeek, "GetCurrentWeek", 0, "Gets the current week as an integer. The first week is 1, and it increments by 1 per week."});
 	lua_functions.push_back({lua::GetCurrentMonth, "GetCurrentMonth", 0, "Gets the current month as an integer. The first month is 1, and it increments by 1 per month."});
@@ -30,13 +30,13 @@ int register_lua_functions(lua_State* L, game_t* game_ptr) {
 	lua_functions.push_back({lua::UnlearnSkill, "UnlearnSkill", 2, "Make the hero unlearn a specific skill. Takes two arguments: the hero object and the skill."});
 	lua_functions.push_back({lua::UpgradeSkill, "UpgradeSkill", 3, "Upgrade a specific skill of the hero to a certain level. Takes three arguments: the hero object, the skill, and the new skill level as an integer."});
 	lua_functions.push_back({lua::GiveHeroArtifact, "GiveHeroArtifact", 2, "Give a specific artifact to the hero. Takes two arguments: the hero object and the artifact."});
-
 	
 	
 	for(auto& finfo : lua_functions) {
-		lua_register(L, finfo.name.toUtf8(), finfo.fptr);
+		auto name =  finfo.name.toUtf8();
+		lua_pushcfunction(L, finfo.fptr, name);
+		lua_setglobal(L, name);
 	}
-	
 	
 	// Create a new table
 	lua_newtable(L);
@@ -182,7 +182,9 @@ namespace lua {
 		auto player = lua_tonumber(L,1);
 		auto message = lua_tostring(L, 2);
 		
-		std::cout << "console message from lua: " << message << std::endl;
+		//if(message)
+		//	std::cout << "console message from lua: " << message << std::endl;
+
 		return 1;
 	}
 

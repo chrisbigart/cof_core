@@ -1,5 +1,6 @@
 #include "core/adventure_map.h"
 #include "core/game.h"
+#include "core/utils.h"
 
 #include <queue>
 #include <map>
@@ -8,7 +9,6 @@
 
 #include "core/qt_headers.h"
 
-std::map<int, std::bitset<64>> adventure_map_t::interactivity_map;
 
 QDataStream& operator<<(QDataStream& stream, const doodad_t& doodad) {
 	stream << doodad.asset_id << doodad.x << doodad.y << doodad.z << doodad.width << doodad.height;
@@ -165,12 +165,12 @@ const std::string map_tile_t::get_name() const {
 
 terrain_type_e get_faction_native_terrain(hero_class_e faction) {
 	switch(faction) {
-		case HERO_KNIGHT: return TERRAIN_DIRT;
-		case HERO_BARBARIAN: return TERRAIN_WASTELAND;
-		case HERO_NECROMANCER: return TERRAIN_SWAMP;
-		case HERO_SORCERESS: return TERRAIN_GRASS;
-		case HERO_WARLOCK: return TERRAIN_LAVA;
-		case HERO_WIZARD: return TERRAIN_SNOW;
+		case HERO_CLASS_KNIGHT: return TERRAIN_DIRT;
+		case HERO_CLASS_BARBARIAN: return TERRAIN_WASTELAND;
+		case HERO_CLASS_NECROMANCER: return TERRAIN_SWAMP;
+		case HERO_CLASS_SORCERESS: return TERRAIN_GRASS;
+		case HERO_CLASS_WARLOCK: return TERRAIN_LAVA;
+		case HERO_CLASS_WIZARD: return TERRAIN_SNOW;
 	}
 	
 	return TERRAIN_UNKNOWN;
@@ -178,12 +178,12 @@ terrain_type_e get_faction_native_terrain(hero_class_e faction) {
 
 hero_class_e get_faction_from_native_terrain_type(terrain_type_e terrain_type) {
 	switch(terrain_type) {
-		case TERRAIN_DIRT: return HERO_KNIGHT;
-		case TERRAIN_WASTELAND: return HERO_BARBARIAN;
-		case TERRAIN_SWAMP: return HERO_NECROMANCER;
-		case TERRAIN_GRASS: return HERO_SORCERESS;
-		case TERRAIN_LAVA: return HERO_WARLOCK;
-		case TERRAIN_SNOW: return HERO_WIZARD;
+		case TERRAIN_DIRT: return HERO_CLASS_KNIGHT;
+		case TERRAIN_WASTELAND: return HERO_CLASS_BARBARIAN;
+		case TERRAIN_SWAMP: return HERO_CLASS_NECROMANCER;
+		case TERRAIN_GRASS: return HERO_CLASS_SORCERESS;
+		case TERRAIN_LAVA: return HERO_CLASS_WARLOCK;
+		case TERRAIN_SNOW: return HERO_CLASS_WIZARD;
 		
 		default: return HERO_CLASS_NONE;
 	}
@@ -223,6 +223,25 @@ std::string get_color_name_for_player_color(player_color_e pcolor) {
 	}
 	
 	return QObject::tr("Unknown").toStdString();
+}
+
+void adventure_map_t::set_object_visited_by_player(interactable_object_t* object, player_e player) {
+	if(player == PLAYER_NONE || player == PLAYER_NEUTRAL)
+		return;
+
+	int offset = std::clamp((int)player - 1, 0, 7);
+	player_object_visited_map[object] |= (1 << offset);
+}
+
+bool adventure_map_t::was_object_visited_by_player(interactable_object_t* object, player_e player) {
+	if(player == PLAYER_NONE || player == PLAYER_NEUTRAL)
+		return false;
+
+	if(!player_object_visited_map.count(object))
+		return false;
+
+	int offset = std::clamp((int)player - 1, 0, 7);
+	return player_object_visited_map[object] & (1 << offset);
 }
 
 std::array<int, game_config::CREATURE_TIERS> base_growth_by_tier = {15, 8, 5, 3, 2, 1};
@@ -267,12 +286,14 @@ uint32_t get_morton_code(uint16_t x, uint16_t y) {
 	return code;
 }
 
-int adventure_map_t::initialize_map(const game_configuration_t& game_config, int seed) {
+int adventure_map_t::initialize_map(int seed) {
 	srand(seed);
 	
 	std::map<artifact_rarity_e, std::vector<artifact_e>> artifacts_by_rarity;
-	for(const auto& art : game_config::get_artifacts())
-		artifacts_by_rarity[art.rarity].push_back(art.id);
+	for(const auto& art : game_config::get_artifacts()) {
+		if(art.id != ARTIFACT_SPELL_SCROLL)
+			artifacts_by_rarity[art.rarity].push_back(art.id);
+	}
 	
 	for(auto& artifacts : artifacts_by_rarity)
 		std::shuffle(artifacts.second.begin(), artifacts.second.end(), std::mt19937_64(seed));
@@ -296,7 +317,7 @@ int adventure_map_t::initialize_map(const game_configuration_t& game_config, int
 
 			res->min_quantity = utils::rand_range(res->min_quantity, std::max(res->min_quantity, res->max_quantity));
 			if(res->resource_type == RESOURCE_RANDOM) {
-				res->resource_type = (resource_e)utils::rand_range((int)RESOURCE_GOLD, (int)RESOURCE_MERCURY);
+				res->resource_type = get_random_resource();
 				if(res->resource_type == RESOURCE_GOLD)
 					res->min_quantity *= 100;
 				else if(res->resource_type == RESOURCE_WOOD || res->resource_type == RESOURCE_ORE)
@@ -306,7 +327,7 @@ int adventure_map_t::initialize_map(const game_configuration_t& game_config, int
 		else if(o->object_type == OBJECT_MINE) {
 			auto mine = (mine_t*)o;
 			if(mine->mine_type == RESOURCE_RANDOM) {
-				mine->mine_type = (resource_e)utils::rand_range((int)RESOURCE_GOLD, (int)RESOURCE_MERCURY);
+				mine->mine_type = get_random_resource();
 			}
 		}
 		else if(o->object_type == OBJECT_ARTIFACT) {
@@ -384,11 +405,29 @@ int adventure_map_t::initialize_map(const game_configuration_t& game_config, int
 		else if(o->object_type == OBJECT_CAMPFIRE) {
 			auto campfire = (campfire_t*)o;
 			if(campfire->resource_type == RESOURCE_RANDOM)
-				campfire->resource_type = (resource_e)(utils::rand_range(2, 6));
+				campfire->resource_type = (resource_e)(utils::rand_range(2, 7));
 			if(campfire->resource_value == 0)
 				campfire->resource_value = utils::rand_range(3, 7);
 			if(campfire->gold_value == 0)
 				campfire->gold_value = utils::rand_range(4, 8);
+		}
+		else if(o->object_type == OBJECT_WAGON) {
+			auto wagon = (wagon_t*)o;
+			if(wagon->reward_type == wagon_t::WAGON_REWARD_RANDOM)
+				wagon->reward_type = (wagon_t::reward_e)(utils::rand_range((int)wagon_t::WAGON_REWARD_GOLD, (int)wagon_t::WAGON_REWARD_ARTIFACT));
+			
+			if(wagon->reward_type == wagon_t::WAGON_REWARD_GOLD && wagon->gold_resource_value == 0) {
+				wagon->gold_resource_value = utils::rand_range(7, 9);
+			}
+			else if(wagon->reward_type == wagon_t::WAGON_REWARD_RESOURCE) {
+				if(wagon->gold_resource_value == 0)
+					wagon->gold_resource_value = utils::rand_range(4, 7);
+				if(wagon->resource_type == RESOURCE_RANDOM)
+					wagon->resource_type = (resource_e)(utils::rand_range(2, 7));
+			}
+			else if(wagon->reward_type == wagon_t::WAGON_REWARD_ARTIFACT) {
+				wagon->artifact_id = get_random_artifact_of_rarity(RARITY_COMMON);
+			}
 		}
 		else if(o->object_type == OBJECT_MAP_TOWN) {
 			auto t = (town_t*)o;
@@ -424,7 +463,7 @@ int adventure_map_t::initialize_map(const game_configuration_t& game_config, int
 				for(auto& cr : game_config::get_creatures()) {
 					troop_t troop;
 					troop.unit_type = cr.unit_type;
-					if(cr.unit_type == UNIT_UNKNOWN || troop.is_turret_or_war_machine())
+					if(cr.unit_type == UNIT_UNKNOWN || troop.is_turret_or_war_machine() || troop.is_summoned_creature())
 						continue;
 
 					if(monster->tier == 0 || cr.tier == monster->tier) {
@@ -457,7 +496,7 @@ int adventure_map_t::initialize_map(const game_configuration_t& game_config, int
 			if(hero_info.portrait == hero.portrait) {
 				hero.gender = hero_info.gender;
 				hero.race = hero_info.race;
-				hero.appereance = hero_info.appereance;
+				hero.appearance = hero_info.appearance;
 			}
 		}
 		
@@ -469,11 +508,9 @@ int adventure_map_t::initialize_map(const game_configuration_t& game_config, int
 			if(hero.player != town->player)
 				continue;
 			
-			auto gate_tile = get_interactable_coordinate_for_object(town);
-			if(hero.x == gate_tile.x && hero.y == gate_tile.y)
+			if(hero.x == town->x && hero.y == town->y)
 				hero_visit_town(&hero, town);
 		}
-		
 	}
 
 	//handle a "uniform" distribution of random artifacts
@@ -491,33 +528,45 @@ int adventure_map_t::initialize_map(const game_configuration_t& game_config, int
 			artifact->rarity = artifact_info.rarity;
 			artifact->asset_id = artifact_info.asset_id;
 		}
-	}
-	
+	}	
 	
 	return 0;
 }
 
-artifact_e adventure_map_t::get_random_artifact_of_rarity(artifact_rarity_e rarity) {
+artifact_e adventure_map_t::get_random_artifact_of_rarity(artifact_rarity_e rarity, std::mt19937_64& rng) {
 	const auto& artifacts = game_config::get_artifacts();
 	
 	if(!artifacts.size())
 		return ARTIFACT_NONE;
 	
 	//todo: weight this?
-	if(rarity == RARITY_UNKNOWN) //random rarity
-		return artifacts[rand() % artifacts.size()].id;
+	if(rarity == RARITY_UNKNOWN) { //random rarity
+		artifact_e result;
+		do {
+			std::uniform_int_distribution<size_t> dist(0, artifacts.size() - 1);
+			result = artifacts[dist(rng)].id;
+		} while(result == ARTIFACT_SPELL_SCROLL);
+
+		return result;
+	}
 	
 	std::vector<artifact_e> artifacts_of_rarity;
 	
 	for(auto& a : artifacts) {
-		if(a.rarity == rarity)
+		if(a.rarity == rarity && a.id != ARTIFACT_SPELL_SCROLL)
 			artifacts_of_rarity.push_back(a.id);
 	}
 	
 	if(!artifacts_of_rarity.size())
 		return ARTIFACT_NONE;
-	
-	return artifacts_of_rarity[rand() % artifacts_of_rarity.size()];
+
+	std::uniform_int_distribution<size_t> dist(0, artifacts_of_rarity.size() - 1);
+	return artifacts_of_rarity[dist(rng)];
+}
+
+artifact_e adventure_map_t::get_random_artifact_of_rarity(artifact_rarity_e rarity) {
+	static thread_local std::mt19937_64 rng{ std::random_device{}() };
+	return get_random_artifact_of_rarity(rarity, rng);
 }
 
 void adventure_map_t::clear(bool delete_objects, bool clear_tiles) {
@@ -533,6 +582,7 @@ void adventure_map_t::clear(bool delete_objects, bool clear_tiles) {
 	}
 
 	objects.clear();
+	player_object_visited_map.clear();
 	
 	monster_guarded_cache_valid = false;
 }
@@ -562,9 +612,14 @@ bool adventure_map_t::remove_hero(hero_t* hero) {
 }
 
 bool adventure_map_t::remove_interactable_object(interactable_object_t* object) {
+	if(!object || !tile_valid(object->x, object->y))
+		return false;
+
+	//FIXME: this only works for objects with a single interactable tile (e.g. will break for sorceror's stones)
+
 	for(uint i = 0; i < objects.size(); i++) {
 		if(objects[i] == object) {
-			auto& tile = get_tile_for_interactable_object(object);
+			auto& tile = get_tile(object->x, object->y);
 			tile.interactable_object = 0;
 			delete objects[i];
 			objects[i] = nullptr;
@@ -588,10 +643,14 @@ map_tile_t& adventure_map_t::get_tile(int x, int y) {
 	return tiles[y * width + x];
 }
 
-map_tile_t& adventure_map_t::get_tile_for_interactable_object(interactable_object_t* object) {
-	assert(object);
-	auto coord = get_interactable_coordinate_for_object(object);
-	return get_tile(coord.x, coord.y);
+bool adventure_map_t::is_tile_monster_guarded(int x, int y) const {
+	if(!tile_valid(x, y))
+		return false;
+
+	if(!monster_guarded_cache_valid)
+		update_guarded_monster_cache();
+
+	return monster_guarded_cache.testBit(x + y * width);
 }
 
 map_monster_t* adventure_map_t::get_monster_guarding_tile(int x, int y) const {
@@ -599,7 +658,6 @@ map_monster_t* adventure_map_t::get_monster_guarding_tile(int x, int y) const {
 	if(!tile_valid(x, y))
 		return nullptr;
 		
-	//todo: fixme, horribly? inefficient
 	for(auto obj : objects) {
 		if(!obj || obj->object_type != OBJECT_MAP_MONSTER)
 			continue;
@@ -617,12 +675,23 @@ void adventure_map_t::update_guarded_monster_cache() const {
 	if(monster_guarded_cache.size() != (width * height)) {
 		monster_guarded_cache.resize(width * height);
 	}
+	monster_guarded_cache.fill(false);
 	
-	for(int y = 0; y < height; y++) {
-		for(int x = 0; x < width; x++) {
-			int offset = x + (y * height);
-			bool guarded = (get_monster_guarding_tile(x, y) != nullptr);
-			monster_guarded_cache.setBit(offset, guarded);
+	std::vector<map_monster_t*> monsters;
+	for(auto obj : objects) {
+		if(obj && obj->object_type == OBJECT_MAP_MONSTER)
+			monsters.push_back((map_monster_t*)(obj));
+	}
+
+	for(auto* monster : monsters) {
+		for(int dy = -1; dy <= 1; dy++) {
+			for(int dx = -1; dx <= 1; dx++) {
+				int tx = monster->x + dx;
+				int ty = monster->y + dy;
+				if(tile_valid(tx, ty))
+					monster_guarded_cache.setBit(tx + ty * width, true);
+				
+			}
 		}
 	}
 	
@@ -1054,7 +1123,6 @@ int adventure_map_t::direction_to_offset(adventure_map_direction_e direction) {
 	if(direction == DIRECTION_SOUTH) return 6;
 	if(direction == DIRECTION_SOUTHWEST) return 5;
 	
-	//assert(0);
 	return -1;
 }
 
@@ -1119,9 +1187,13 @@ interactable_object_t* adventure_map_t::get_interactable_object_for_tile(int x, 
 		return nullptr;
 	
 	auto ind = get_tile(x, y).interactable_object - 1;
-	assert(ind < (uint16_t)objects.size());
+	if(ind >= objects.size())
+		return nullptr;
+
 	return objects[ind];
 }
+
+extern const char* tr(const char*);
 
 //homm2/3:
 //Few = 1-4
@@ -1134,37 +1206,37 @@ interactable_object_t* adventure_map_t::get_interactable_object_for_tile(int x, 
 //Zounds = 500-999
 //Legion = 1000+
 std::pair<std::string, std::string> adventure_map_t::get_troop_count_strings(uint troop_count, uint scouting_level, bool use_prefix) const {
-	std::string text = "???";
+	QString text = "???";
 	std::string count = "?";
 	uint min = 0;
 	uint max = 0;
 	
-	auto set_text = [troop_count, &text, &min, &max] (const char* _name, uint minval, uint maxval) {
+	auto set_text = [troop_count, &text, &min, &max] (const QString& _name, uint minval, uint maxval) {
 		if(troop_count >= minval && troop_count <= maxval) {
-			text = QObject::tr(_name).toStdString();
+			text = _name;
 			min = minval;
 			max = maxval;
 		}
 	};
 	
-	set_text(use_prefix ? "A few" : "Few", 1, 4);
-	set_text("Several", 5, 9);
-	set_text(use_prefix ? "A pack of" : "Pack", 10, 19);
-	set_text(use_prefix ? "Lots of" : "Lots", 20, 49);
-	set_text(use_prefix ? "A horde of" : "Horde", 50, 99);
-	set_text(use_prefix ? "A throng of" : "Throng", 100, 249);
-	set_text(use_prefix ? "A swarm of" : "Swarm", 250, 499);
-	set_text(use_prefix ? "Zounds of" : "Zounds", 500, 999);
+	set_text(use_prefix ? QObject::tr("A few") : QObject::tr("Few"), 1, 4);
+	set_text(QObject::tr("Several"), 5, 9);
+	set_text(use_prefix ? QObject::tr("A pack of") : QObject::tr("Pack"), 10, 19);
+	set_text(use_prefix ? QObject::tr("Lots of") : QObject::tr("Lots"), 20, 49);
+	set_text(use_prefix ? QObject::tr("A horde of") : QObject::tr("Horde"), 50, 99);
+	set_text(use_prefix ? QObject::tr("A throng of") : QObject::tr("Throng"), 100, 249);
+	set_text(use_prefix ? QObject::tr("A swarm of") : QObject::tr("Swarm"), 250, 499);
+	set_text(use_prefix ? QObject::tr("Zounds of") : QObject::tr("Zounds"), 500, 999);
 	
 	if(troop_count >= 1000) {
 		count = "1k+";
-		text = use_prefix ? "A legion of" : "Legion";
+		text = use_prefix ? QObject::tr("A legion of") : QObject::tr("Legion");
 	}
 	else {
 		count = std::to_string(min) + "-" + std::to_string(max);
 	}
 	
-	return std::make_pair(text, count);
+	return std::make_pair(text.toStdString(), count);
 }
 
 bool adventure_map_t::can_hero_move_to_tile(hero_t* hero, int x, int y, game_t* game) {
@@ -1185,9 +1257,15 @@ bool adventure_map_t::can_hero_move_to_tile(hero_t* hero, int x, int y, game_t* 
 		return false;
 
 	//get movement penalty
-	auto& destination_tile = get_tile(x, y);
 	auto diagonal = are_tiles_diagonal(hero->x, hero->y, x, y);
 	auto movement_cost = get_terrain_movement_cost(hero, x, y, diagonal);
+
+	//special case for pathfinding picking up objects not costing movement
+	if(hero->get_secondary_skill_level(SKILL_PATHFINDING)) {
+		auto obj = get_interactable_object_for_tile(x, y);
+		if(interactable_object_t::is_pickupable(obj))
+			return true;
+	}
 
 	if(movement_cost > hero->movement_points)
 		return false;
@@ -1195,7 +1273,7 @@ bool adventure_map_t::can_hero_move_to_tile(hero_t* hero, int x, int y, game_t* 
 	return true;
 }
 
-bool adventure_map_t::zero_hero_movement_points_if_low(hero_t* hero, game_t& game) {
+bool adventure_map_t::zero_hero_movement_points_if_low(hero_t* hero) {
 	if(!hero)
 		return false;
 
@@ -1237,19 +1315,25 @@ map_action_e adventure_map_t::move_hero_to_tile(hero_t& hero, int x, int y, game
 		
 	hero.movement_points -= movement_cost;
 
-	game.get_player(hero.player).player_stats.movement.total_hero_steps_taken++;
-	game.get_player(hero.player).player_stats.movement.total_hero_movement_points_spent += movement_cost;
-	switch(destination_tile.terrain_type) {
-		case TERRAIN_WATER: game.get_player(hero.player).player_stats.movement.total_hero_steps_taken_on_water++; break;
-		case TERRAIN_GRASS: game.get_player(hero.player).player_stats.movement.total_hero_steps_taken_on_grass++; break;
-		case TERRAIN_DIRT: game.get_player(hero.player).player_stats.movement.total_hero_steps_taken_on_dirt++; break;
-		case TERRAIN_WASTELAND: game.get_player(hero.player).player_stats.movement.total_hero_steps_taken_on_wasteland++; break;
-		case TERRAIN_LAVA: game.get_player(hero.player).player_stats.movement.total_hero_steps_taken_on_lava++; break;
-		case TERRAIN_DESERT: game.get_player(hero.player).player_stats.movement.total_hero_steps_taken_on_desert++; break;
-		case TERRAIN_BEACH: game.get_player(hero.player).player_stats.movement.total_hero_steps_taken_on_beach++; break;
-		case TERRAIN_SNOW: game.get_player(hero.player).player_stats.movement.total_hero_steps_taken_on_snow++; break;
-		case TERRAIN_SWAMP: game.get_player(hero.player).player_stats.movement.total_hero_steps_taken_on_swamp++; break;
-		case TERRAIN_JUNGLE: game.get_player(hero.player).player_stats.movement.total_hero_steps_taken_on_jungle++; break;
+	game.update_achievement_stats(game.get_player(hero.player).player_stats.movement.total_hero_steps_taken, 1, ACHIEVEMENT_TRAVELERS_JOURNEY);
+	game.update_achievement_stats(game.get_player(hero.player).player_stats.movement.total_hero_movement_points_spent, movement_cost);
+
+	if(destination_tile.road_type != ROAD_NONE)	{
+		game.update_achievement_stats(game.get_player(hero.player).player_stats.movement.total_hero_steps_taken_on_roads, 1, ACHIEVEMENT_THE_LONG_AND_WINDING_ROAD);
+	}
+	else {
+		switch(destination_tile.terrain_type) {
+			case TERRAIN_WATER: game.update_achievement_stats(game.get_player(hero.player).player_stats.movement.total_hero_steps_taken_on_water, 1, ACHIEVEMENT_SAIL_AWAY); break;
+			case TERRAIN_GRASS: game.update_achievement_stats(game.get_player(hero.player).player_stats.movement.total_hero_steps_taken_on_grass, 1, ACHIEVEMENT_TAKE_ME_HOME); break;
+			case TERRAIN_DIRT: game.update_achievement_stats(game.get_player(hero.player).player_stats.movement.total_hero_steps_taken_on_dirt, 1, ACHIEVEMENT_DIRT_ROAD_ANTHEM); break;
+			case TERRAIN_WASTELAND: game.update_achievement_stats(game.get_player(hero.player).player_stats.movement.total_hero_steps_taken_on_wasteland, 1, ACHIEVEMENT_CRACKS_IN_THE_PAVEMENT); break;
+			case TERRAIN_LAVA: game.update_achievement_stats(game.get_player(hero.player).player_stats.movement.total_hero_steps_taken_on_lava, 1, ACHIEVEMENT_HIGHWAY_TO_HELL); break;
+			case TERRAIN_DESERT: game.update_achievement_stats(game.get_player(hero.player).player_stats.movement.total_hero_steps_taken_on_desert, 1, ACHIEVEMENT_DESERT_ROSE); break;
+			case TERRAIN_BEACH: game.update_achievement_stats(game.get_player(hero.player).player_stats.movement.total_hero_steps_taken_on_beach, 1, ACHIEVEMENT_ISLAND_IN_THE_SUN); break;
+			case TERRAIN_SNOW: game.update_achievement_stats(game.get_player(hero.player).player_stats.movement.total_hero_steps_taken_on_snow, 1, ACHIEVEMENT_COLD_AS_ICE); break;
+			case TERRAIN_SWAMP: game.update_achievement_stats(game.get_player(hero.player).player_stats.movement.total_hero_steps_taken_on_swamp, 1, ACHIEVEMENT_WELCOME_TO_THE_JUNGLE); break;
+			case TERRAIN_JUNGLE: game.update_achievement_stats(game.get_player(hero.player).player_stats.movement.total_hero_steps_taken_on_jungle, 1, ACHIEVEMENT_WELCOME_TO_THE_JUNGLE); break;
+		}
 	}
 
 	//todo
@@ -1257,7 +1341,7 @@ map_action_e adventure_map_t::move_hero_to_tile(hero_t& hero, int x, int y, game
 	if(previous_tile.is_interactable()) {
 		auto obj = get_interactable_object_for_tile(hero.x, hero.y);
 		if(obj && obj->object_type == OBJECT_MAP_TOWN) {
-			auto town = (town_t*)obj;			
+			auto town = (town_t*)obj;
 			town->visiting_hero = nullptr;
 			hero.in_town = false;
 		}
@@ -1267,7 +1351,10 @@ map_action_e adventure_map_t::move_hero_to_tile(hero_t& hero, int x, int y, game
 	hero.y = y;
 
 	//must be called AFTER we update the hero's position above
-	zero_hero_movement_points_if_low(&hero, game);
+	zero_hero_movement_points_if_low(&hero);
+
+	//moving a hero automatically wakes them if they were sleeping
+	hero.is_sleeping = false;
 
 	auto obj = get_interactable_object_for_tile(x, y);
 	
@@ -1288,201 +1375,12 @@ map_action_e adventure_map_t::move_hero_to_tile(hero_t& hero, int x, int y, game
 	if(!obj)
 		return MAP_ACTION_VALID_MOVE;
 	
-	
 	if(obj->object_type == OBJECT_SHIP) {
 		hero_board_ship(&hero, obj);
 		return MAP_ACTION_HERO_BOARDED_SHIP;
 	}
 	
 	return MAP_ACTION_VALID_MOVE;
-}
-	
-map_action_e adventure_map_t::interact_with_object(hero_t* hero, interactable_object_t* object, game_t& game) {
-//	if(&hero == nullptr)
-//		return MAP_ACTION_NONE;
-	
-//	auto x = hero.x;
-//	auto y = hero.y;
-//	//is target tile interactive?
-//	auto& tile = get_tile(x, y);
-//	if(!tile.is_interactable())
-//		return MAP_ACTION_NONE;
-//	
-//	if(!object)
-//		return MAP_ACTION_NONE;
-//	
-//	//fixme
-////	if(!are_tiles_adjacent(hero.x, hero.y, x, y))
-////		return MAP_ACTION_NONE;
-//		
-////return tile.interact_with_object(hero, obj);
-//
-//	if(object->type == OBJECT_WINDMILL) {
-//		auto mill = (flaggable_object_t*)object;
-//
-//		bool visited = (mill->visited & 0x80) > 0;
-//		auto resource = (resource_e)((mill->visited & 0x70) >> 4);
-//		auto quantity = mill->visited & 0x0F;
-//
-//		if(visited)
-//			return MAP_ACTION_SHOW_SECONDARY_INFO_DIALOG;
-//
-//		resource_group_t res;
-//		res.set_value_for_type(resource, quantity);
-//		game.get_player(hero.player).resources += res;
-//
-//		mill->owner = hero.player;
-//		mill->visited = 0x80;
-//		
-//		return MAP_ACTION_SHOW_SECONDARY_INFO_DIALOG;
-//	}
-//	else if(object->type == OBJECT_WATERWHEEL) {
-//		auto wheel = (flaggable_object_t*)object;
-//		if(wheel->visited)
-//			return MAP_ACTION_SHOW_SECONDARY_INFO_DIALOG;
-//
-//		auto goldval = (game.get_week() == 1 && game.get_month() == 1) ? 500 : 1000;
-//
-//		resource_group_t res;
-//		res.set_value_for_type(RESOURCE_GOLD, goldval);
-//		game.get_player(hero.player).resources += res;
-//
-//		wheel->visited = 1;
-//		
-//		return MAP_ACTION_SHOW_SECONDARY_INFO_DIALOG;
-//	}
-////	else if(obj->type == OBJECT_BLACKSMITH) {
-////		auto smith = (blacksmith_t*)obj;
-////		if(smith->visited)
-////			return true;
-////
-////		if(smith->choice1 != ARTIFACT_NONE) { //artifacts haven't been selected
-////
-////		}
-////
-////		app.show_client_dialog(OBJECT_BLACKSMITH, obj, -1);
-////	}
-//	else if(object->type == OBJECT_MAGIC_SHRINE) {
-//		//app.show_client_dialog(OBJECT_MAGIC_SHRINE, object, -1);
-//		hero.set_visited_object(object);
-//		auto shrine = (shrine_t*)object;
-//		if(hero.can_learn_spell(shrine->spell))
-//			hero.learn_spell(shrine->spell);
-//
-//		return MAP_ACTION_SHOW_SECONDARY_INFO_DIALOG;
-//	}
-////	if(obj->type == OBJECT_MINE) {
-////		auto mine = (mine_t*)obj;
-////		app.show_client_dialog(obj->type, obj, -1);
-////		mine->owner = hero->player;
-////		app.update_flaggable_object(mine);
-////	}
-//	else if(object->type == OBJECT_WATCHTOWER) {
-//		game.reveal_area(hero.player, x, y, 20, 20);
-//		auto tower = (flaggable_object_t*)object;
-//		tower->date_visited = game.date;
-//		tower->owner = hero.player;
-//		tower->visited = true;
-//		//app.update_ui();
-//		return MAP_ACTION_SHOW_SECONDARY_INFO_DIALOG;
-//	}
-//	else if(object->type == OBJECT_WELL) {
-//		if(hero.has_object_been_visited(object)) {
-//			//app.show_client_dialog(OBJECT_WELL, obj, -1);
-//			return MAP_ACTION_SHOW_SECONDARY_INFO_DIALOG;
-//		}
-//		else {
-//			//todo: don't mark object as visited if mana is full
-//			hero.mana = std::min(hero.get_maximum_mana(),(uint16_t)(hero.mana + (hero.get_maximum_mana() / 2)));
-//			//app.show_client_dialog(OBJECT_WELL, obj, -1);
-//			hero.set_visited_object(object);
-//			return MAP_ACTION_SHOW_SECONDARY_INFO_DIALOG;
-//		}
-//	}
-//	else if(object->type == OBJECT_SIGN) {
-//		//app.show_client_dialog(OBJECT_SIGN, obj, -1);
-//		((sign_t*)object)->visited[hero.player - 1] = true; //fixme
-//		return MAP_ACTION_SHOW_SECONDARY_INFO_DIALOG;
-//	}
-//	else if(object->type == OBJECT_SCHOLAR) {
-//		auto tomb = (warriors_tomb_t*)object;
-//		hero.pickup_artifact(tomb->artifact);
-//		return MAP_ACTION_SHOW_SECONDARY_INFO_DIALOG;
-//	}
-//	else if(object->type == OBJECT_STANDING_STONES) {
-//		//app.show_client_dialog(OBJECT_STANDING_STONES, obj, -1);
-//		if(!hero.has_object_been_visited(object)) {
-//			hero.power++;
-//			hero.set_visited_object(object);
-//		}
-//		return MAP_ACTION_SHOW_SECONDARY_INFO_DIALOG;
-//	}
-//	else if(object->type == OBJECT_MERCENARY_CAMP) {
-//		//app.show_client_dialog(obj->type, obj, -1);
-//		if(!hero.has_object_been_visited(object)) {
-//			hero.attack++;
-//			hero.set_visited_object(object);
-//		}
-//		return MAP_ACTION_SHOW_SECONDARY_INFO_DIALOG;
-//	}
-//	else if(object->type == OBJECT_REFUGEE_CAMP) {
-//		
-//		return MAP_ACTION_SHOW_SECONDARY_INFO_DIALOG;
-//	}
-//	else if(object->type == OBJECT_TELEPORTER) {
-//		auto tele = (teleporter_t*)object;
-//		if(tele->type == teleporter_t::TELEPORTER_TYPE_ONE_WAY_EXIT) //nothing to do at an exit-only teleporter
-//			return MAP_ACTION_NONE;
-//
-//		std::vector<teleporter_t*> destinations;
-//		for(auto o : objects) {
-//			if(!o || o->type != OBJECT_TELEPORTER || o == tele)
-//				continue;
-//
-//			auto dst = (teleporter_t*)o;
-//			//check teleporter type/color compatibility
-//			if(dst->color != tele->color || dst->type == teleporter_t::TELEPORTER_TYPE_ONE_WAY_ENTRANCE)
-//				continue;
-//			
-//			//check to see if destination is occupied or not
-//			auto dest_tile = get_interactable_coordinate_for_object(dst);
-//			bool occupied = false;
-//			for(auto& h : heroes) {
-//				if(h.second.x == dest_tile.x && h.second.y == dest_tile.y)
-//					occupied = true;
-//			}
-//			
-//			if(occupied)
-//				continue;
-//			
-//			destinations.push_back(dst);
-//		}
-//
-//		if(!destinations.size()) //no valid destinations
-//			return MAP_ACTION_NONE;
-//
-//		auto dest = destinations.at(rand() % destinations.size());
-//		auto teleport_dest_tile = get_interactable_coordinate_for_object(dest);
-//		hero.x = teleport_dest_tile.x;
-//		hero.y = teleport_dest_tile.y;
-//		
-//		return MAP_ACTION_HERO_TELEPORTED;
-//	}
-//	
-//	switch(object->type) {
-//		case OBJECT_ARENA:
-//		case OBJECT_GAZEBO:
-//		case OBJECT_WITCH_HUT:
-//		case OBJECT_SCHOOL_OF_MAGIC:
-//		case OBJECT_SCHOOL_OF_WAR:
-//		case OBJECT_WATERWHEEL:
-//		case OBJECT_WINDMILL:
-//		case OBJECT_PYRAMID:
-//		case OBJECT_WARRIORS_TOMB:
-//			return MAP_ACTION_SHOW_PRIMARY_INFO_DIALOG;
-//			
-//	}
-	return MAP_ACTION_NONE;
 }
 
 bool adventure_map_t::move_troops_between_heroes(hero_t* source_hero, uint source_slot, hero_t* dest_hero, uint dest_slot) {
@@ -1559,18 +1457,21 @@ bool adventure_map_t::swap_hero_artifacts(hero_t* hero1, hero_t* hero2, bool inc
 }
 
 bool adventure_map_t::move_all_artifacts_from_hero_to_hero(hero_t* hero_from, hero_t* hero_to, bool include_backpack, bool backpack_only) {
-	//need some checks here
 	if(!hero_from || !hero_to)
 		return false;
 
-	for(int i = 0; i < hero_from->artifacts.size(); i++) {
-		if(hero_to->pickup_artifact(hero_from->artifacts[i]))
-			hero_from->artifacts[i] = ARTIFACT_NONE;
+	if(!backpack_only) {
+		for(int i = 0; i < hero_from->artifacts.size(); i++) {
+			if(hero_to->pickup_artifact(hero_from->artifacts[i]))
+				hero_from->artifacts[i] = ARTIFACT_NONE;
+		}
 	}
 
-	for(int i = 0; i < hero_from->backpack.size(); i++) {
-		if(hero_to->pickup_artifact(hero_from->backpack[i]))
-			hero_from->backpack[i] = ARTIFACT_NONE;
+	if(include_backpack) {
+		for(int i = 0; i < hero_from->backpack.size(); i++) {
+			if(hero_to->pickup_artifact(hero_from->backpack[i]))
+				hero_from->backpack[i] = ARTIFACT_NONE;
+		}
 	}
 
 	return true;
@@ -1611,7 +1512,7 @@ bool adventure_map_t::move_artifact_from_hero_to_hero(hero_t* hero_from, hero_t*
 bool adventure_map_t::move_artifact_from_hero_backpack_to_hero_backpack(hero_t* hero_from, hero_t* hero_to, uint from_slot, uint to_slot) {
 	if(!hero_from || !hero_to)
 		return false;
-	if(from_slot > game_config::HERO_BACKPACK_SLOTS || to_slot > game_config::HERO_BACKPACK_SLOTS)
+	if(from_slot >= game_config::HERO_BACKPACK_SLOTS || to_slot >= game_config::HERO_BACKPACK_SLOTS)
 		return false;
 
 	std::swap(hero_from->backpack[from_slot], hero_to->backpack[to_slot]);
@@ -1622,7 +1523,7 @@ bool adventure_map_t::move_artifact_from_hero_backpack_to_hero_backpack(hero_t* 
 bool adventure_map_t::move_artifact_from_hero_slot_to_hero_backpack(hero_t* hero_from, hero_t* hero_to, uint from_slot, uint to_slot) {
 	if(!hero_from || !hero_to)
 		return false;
-	if(from_slot == 0 || from_slot > game_config::HERO_BACKPACK_SLOTS || to_slot > game_config::HERO_BACKPACK_SLOTS)
+	if(from_slot == 0 || from_slot > game_config::HERO_ARTIFACT_SLOTS || to_slot >= game_config::HERO_BACKPACK_SLOTS)
 		return false;
 	
 	auto& dest_artifact = game_config::get_artifact(hero_to->backpack[to_slot]);
@@ -1658,7 +1559,7 @@ bool adventure_map_t::move_artifact_from_hero_slot_to_hero_backpack(hero_t* hero
 bool adventure_map_t::move_artifact_from_hero_backpack_to_hero_slot(hero_t* hero_from, hero_t* hero_to, uint from_slot, uint to_slot) {
 	if(!hero_from || !hero_to)
 		return false;
-	if(from_slot > game_config::HERO_BACKPACK_SLOTS || to_slot == 0 || to_slot > game_config::HERO_BACKPACK_SLOTS)
+	if(from_slot >= game_config::HERO_BACKPACK_SLOTS || to_slot == 0 || to_slot > game_config::HERO_ARTIFACT_SLOTS)
 		return false;
 	
 	auto& src_artifact = game_config::get_artifact(hero_from->backpack[from_slot]);
@@ -1705,10 +1606,18 @@ int adventure_map_t::get_next_open_troop_slot(const troop_group_t& troops) {
 }
 
 bool adventure_map_t::dismiss_troops(hero_t* hero, int troop_index) {
-	if(!hero || troop_index < 0 || troop_index > game_config::HERO_TROOP_SLOTS)
+	if(!hero || troop_index < 0 || troop_index >= game_config::HERO_TROOP_SLOTS)
 		return false;
 
 	hero->troops[troop_index].clear();
+	return true;
+}
+
+bool adventure_map_t::dismiss_troops(town_t* town, int troop_index) {
+	if(!town || troop_index < 0 || troop_index >= game_config::HERO_TROOP_SLOTS)
+		return false;
+
+	town->garrison_troops[troop_index].clear();
 	return true;
 }
 
@@ -1842,7 +1751,7 @@ bool adventure_map_t::move_troop_stack_from_hero_to_hero(hero_t* hero_from, hero
 		return false;
 	
 	auto& src_troop = hero_from->troops[stack];
-	if(src_troop.is_empty())
+	if(src_troop.is_empty() || src_troop.unit_type == UNIT_UNKNOWN)
 		return false;
 
 	if(move_only_one_troop) {
@@ -1851,6 +1760,9 @@ bool adventure_map_t::move_troop_stack_from_hero_to_hero(hero_t* hero_from, hero
 			hero_to->troops[open_slot].stack_size = 1;
 			hero_to->troops[open_slot].unit_type = src_troop.unit_type;
 			src_troop.stack_size--;
+			if(src_troop.stack_size == 0)
+				src_troop.clear();
+
 			return true;
 		}
 	}
@@ -1861,6 +1773,8 @@ bool adventure_map_t::move_troop_stack_from_hero_to_hero(hero_t* hero_from, hero
 			if(move_only_one_troop) {
 				hero_to->troops[n].stack_size++;
 				src_troop.stack_size--;
+				if(src_troop.stack_size == 0)
+					src_troop.clear();
 			}
 			else {
 				hero_to->troops[n].stack_size += src_troop.stack_size;
@@ -1921,7 +1835,6 @@ bool adventure_map_t::move_troops_from_army_to_army(troop_group_t& source, uint 
 }
 
 bool adventure_map_t::move_troops_to_garrison(hero_t* source_hero, uint source_slot, town_t* dest_town, uint dest_slot) {
-	//assert(source_hero && dest_town);
 	if(!source_hero || !dest_town)
 		return false;
 	
@@ -1952,7 +1865,6 @@ bool adventure_map_t::move_troops_to_garrison(hero_t* source_hero, uint source_s
 }
 
 bool adventure_map_t::move_troops_from_garrison(town_t* source_town, uint source_slot, hero_t* dest_hero, uint dest_slot) {
-	//assert(source_town && dest_hero);
 	if(!source_town || !dest_hero)
 		return false;
 	
@@ -2033,7 +1945,6 @@ bool adventure_map_t::move_troops_within_garrison(town_t* town, uint source_slot
 }
 
 bool adventure_map_t::move_all_troops_from_garrison_to_visiting_hero(town_t* town) {
-	//assert(town && town->visiting_hero)
 	if(!town || !town->visiting_hero)
 		return false;
 	
@@ -2203,9 +2114,8 @@ bool adventure_map_t::garrison_hero(hero_t* hero, town_t* town) {
 	town->visiting_hero = nullptr;
 	town->garrisoned_hero = hero;
 	//todo: need more checks here
-	auto pos = get_interactable_coordinate_for_object(town);
-	hero->x = pos.x;
-	hero->y = pos.y;
+	hero->x = town->x;
+	hero->y = town->y;
 	hero->garrisoned = true;
 	
 	return true;
@@ -2218,14 +2128,12 @@ bool adventure_map_t::ungarrison_hero(hero_t* hero, town_t* town) {
 	town->garrisoned_hero = nullptr;
 	town->visiting_hero = hero;
 	//todo: need more checks here
-	auto pos = get_interactable_coordinate_for_object(town);
-	hero->x = pos.x;
-	hero->y = pos.y;
+	hero->x = town->x;
+	hero->y = town->y;
 	hero->garrisoned = false;
 	
 	return true;
 }
-
 
 bool adventure_map_t::hero_visit_town(hero_t* hero, town_t* town) {
 	if(!hero || !town)
@@ -2285,6 +2193,20 @@ bool adventure_map_t::swap_visiting_and_garrisoned_heroes(town_t* town) {
 	if(!visiting && !garrisoned)
 		return false;
 	
+	bool garrison_troops_empty = true;
+	for(const auto& tr : town->garrison_troops) {
+		if(!tr.is_empty()) {
+			garrison_troops_empty = false;
+			break;
+		}
+	}
+
+	//if we are moving the visiting hero up to be garrisoned, and the garrison troops aren't empty,
+	//we need to make sure we can merge the garrisoned troops with the hero's army
+	if(visiting && !garrisoned && !garrison_troops_empty) {
+		//merge_troops
+	}
+
 	town->visiting_hero = garrisoned;
 	if(town->visiting_hero)
 		town->visiting_hero->garrisoned = false;
@@ -2294,79 +2216,6 @@ bool adventure_map_t::swap_visiting_and_garrisoned_heroes(town_t* town) {
 		town->garrisoned_hero->garrisoned = true;
 	
 	return true;
-}
-
-coord_t adventure_map_t::get_interactable_offset_for_object(const interactable_object_t* object) const {
-	if(!object)
-		return {0, 0};
-	
-	auto it = interactivity_map.find(object->asset_id);
-	if (it == interactivity_map.end())
-		return {0, 0};
-	
-	const auto& set = it->second;
-	int obj_width = object->width;
-
-	if(obj_width == 0)
-		return {0, 0};
-
-	for(int i = 0; i < (int)set.size(); i++) {
-		if(set[i]) {
-			int x = i % obj_width;
-			int y = i / obj_width;
-			return {x, y};
-		}
-	}
-	
-	return {0, 0};
-}
-
-//todo combine these functions
-bool adventure_map_t::is_offset_passable(const doodad_t* doodad, int x, int y) {
-	if(!passability_map.count(doodad->asset_id))
-		return false;
-	
-	auto& set = passability_map[doodad->asset_id];
-	int pos = doodad->width * y + x;
-
-	if(pos < 0 || pos > set.size())
-		return true;
-	
-	return set[pos];
-}
-
-bool adventure_map_t::is_offset_passable(const interactable_object_t* object, int x, int y) {
-	if(!passability_map.count(object->asset_id))
-		return false;
-	
-	auto& set = passability_map[object->asset_id];
-	
-	int obj_width = object->width;
-	int obj_height = object->height;
-	
-	int pos = obj_width * y + x;
-	//assert(pos >= 0 && pos < set.size());
-	if(pos < 0 || pos > set.size())
-		return true;
-	
-	return set[pos];
-}
-
-bool adventure_map_t::is_offset_interactable(const interactable_object_t* object, int x, int y) {
-	if(!object)
-		return false;
-	
-	auto offset = get_interactable_offset_for_object(object);
-	
-	return (x == offset.x) && (y == offset.y);
-}
-
-coord_t adventure_map_t::get_interactable_coordinate_for_object(const interactable_object_t* object) const {
-	if(!object)
-		return {-1, -1};
-	
-	auto offset = get_interactable_offset_for_object(object);
-	return {object->x + offset.x, object->y + offset.y};
 }
 
 interactable_object_t* adventure_map_t::get_object_by_id(uint16_t object_id, interactable_object_e match_type) {
@@ -2466,76 +2315,6 @@ int adventure_map_t::get_route_cost_to_tile(const hero_t* hero, int x, int y, co
 	return route.back().total_cost;
 }
 
-
-//
-////use a* to find the route
-//route_t adventure_map_t::get_route(int x1, int y1, int x2, int y2)
-//{
-//	std::vector<map_tile_t*> open_list;
-//	std::vector<map_tile_t*> closed_list;
-//	std::vector<map_tile_t*> route;
-//	
-//	map_tile_t* start_tile = &get_tile(x1, y1);
-//	map_tile_t* end_tile = &get_tile(x2, y2);
-//	open_list.push_back(start_tile);
-//	
-//	while(open_list.size() > 0) {
-//		map_tile_t* current_tile = open_list[0];
-//		if(current_tile == end_tile) {
-//			while(current_tile != start_tile) {
-//				route.push_back(current_tile);
-//				current_tile = current_tile->parent;
-//			}
-//			std::reverse(route.begin(), route.end());
-//			return route;
-//		}
-//		open_list.erase(open_list.begin());
-//		closed_list.push_back(current_tile);
-//		for(auto xoff = -1; xoff <= 1; xoff++) {
-//			for(auto yoff = -1; yoff <= 1; yoff++) {
-//				if(xoff == 0 && yoff == 0)
-//					continue;
-//				
-//				int x = current_tile->x + xoff;
-//				int y = current_tile->y + yoff;
-//				if(x < 0 || x >= width || y < 0 || y >= height)
-//					continue;
-//				
-//				map_tile_t* neighbor_tile = &get_tile(x, y);
-//				if(!neighbor_tile->passability.passable)
-//					continue;
-//				if(std::find(closed_list.begin(), closed_list.end(), neighbor_tile) != closed_list.end()) {
-//					continue;
-//				}
-//				if(std::find(open_list.begin(), open_list.end(), neighbor_tile) != open_list.end()) {
-//					continue;
-//				}
-//				neighbor_tile->parent = current_tile;
-//				open_list.push_back(neighbor_tile);
-//			}
-//		}
-//		for(auto i = 0; i < 8; i++) {
-//			map_tile_t* neighbor = current_tile->neighbors[i];
-//			
-//			if(std::find(closed_list.begin(), closed_list.end(), neighbor) != closed_list.end()) {
-//				continue;
-//			}
-//			if(std::find(open_list.begin(), open_list.end(), neighbor) == open_list.end()) {
-//				open_list.push_back(neighbor);
-//			}
-//			int g_score = current_tile->g_score + 1;
-//			if(g_score < neighbor->g_score) {
-//				neighbor->g_score = g_score;
-//				neighbor->parent = current_tile;
-//			}
-//		}
-//	}
-//	
-//	return route;
-//}
-
-
-
 QColor get_color_for_tile(terrain_type_e type) {
 	switch(type) {
 	case TERRAIN_WATER: return QColor(20, 85, 170);
@@ -2551,8 +2330,6 @@ QColor get_color_for_tile(terrain_type_e type) {
 	default: return QColor(100, 100, 100);
 	}
 }
-
-//todo: move this
 
 void draw_minimap(QImage& image, uint pixel_size, const adventure_map_t& map, const game_t* game, player_e player, const std::string& path_prefix, bool reveal_map) {
 	auto mapsize = pixel_size;
@@ -2577,6 +2354,15 @@ void draw_minimap(QImage& image, uint pixel_size, const adventure_map_t& map, co
 		}
 	}
 	
+	image = map.width > map.height ? terrain_img.scaledToWidth(mapsize) : terrain_img.scaledToHeight(mapsize);
+	QPainter painter1(&image);
+
+	//for drawing the "preview" minimap, exclude drawing fog or objects on top and just return the terrain image
+	if(player == PLAYER_NONE) {
+		//painter1.end();
+		//return;
+	}
+
 	QImage fog_img(map.width, map.height, QImage::Format_RGBA8888);
 	for(int y = 0; y < map.height; y++) {
 		for(int x = 0; x < map.width; x++) {
@@ -2593,9 +2379,6 @@ void draw_minimap(QImage& image, uint pixel_size, const adventure_map_t& map, co
 				fog_img.setPixelColor(x, y, QColor(0, 0, 0, 0));
 		}
 	}
-
-	image = map.width > map.height ? terrain_img.scaledToWidth(mapsize) : terrain_img.scaledToHeight(mapsize);
-	QPainter painter1(&image);
 	
 	const QString prefix = QString::fromStdString(path_prefix);
 	static auto town_color = QImage(prefix + "assets/castle2.png");
@@ -2611,78 +2394,76 @@ void draw_minimap(QImage& image, uint pixel_size, const adventure_map_t& map, co
 	QMap<player_color_e, QImage> colored_town_images;
 	
 	for(auto obj : map.objects) {
-		if(!obj)
+		if(!obj || obj->object_type != OBJECT_MINE)
+			continue;
+
+		auto mine = (mine_t*)obj;
+			
+		if(game && !game->is_tile_visible(mine->x, mine->y, player))
+			continue;
+			
+		float sz = scale * 4;
+		auto outline = mine_outline.scaledToWidth(sz, Qt::SmoothTransformation);
+		auto icon = mine_color.scaledToWidth(sz, Qt::SmoothTransformation);			
+			
+		QColor color = neutral_color;
+		if(mine->owner != PLAYER_NONE) {
+			if(mine->owner < map.player_configurations.size())
+				color = QColor(get_qcolor_for_player_color(map.player_configurations[mine->owner - 1].color));
+		}
+
+		//QPixmap pixmap = QPixmap::fromImage(icon);
+		QImage colored = icon.copy();
+		QPainter painter(&colored);
+		painter.setCompositionMode(QPainter::CompositionMode_SourceIn);
+		painter.setBrush(color);
+		painter.setPen(color);
+		painter.drawRect(colored.rect());
+		painter.end();
+			
+		//mine->width
+		auto xpos = (mine->x / (float)map.width) * mapsize;
+		auto ypos = (mine->y / (float)map.height) * mapsize;
+		auto rect = QRectF(xpos - sz/2.f, ypos - sz/2.f, sz, sz);
+		painter1.drawImage(rect, outline);
+		//painter1.drawImage(rect, icon);
+		//painter1.drawPixmap(rect, pixmap, pixmap.rect());
+		painter1.drawImage(rect, colored, colored.rect());
+	}
+
+	for(auto obj : map.objects) {
+		if(!obj || obj->object_type != OBJECT_MAP_TOWN)
 			continue;
 		
-		if(obj->object_type == OBJECT_MAP_TOWN) {
-			auto town = (town_t*)obj;
+		auto town = (town_t*)obj;
 			
-			if(game && !game->is_tile_visible(town->x, town->y, player))
-				continue;
+		if(game && !game->is_tile_visible(town->x, town->y, player))
+			continue;
 			
-			float sz = scale * 5;
-			auto outline = town_outline.scaledToWidth(sz, Qt::SmoothTransformation);
-			auto icon = town_color.scaledToWidth(sz, Qt::SmoothTransformation);
+		float sz = scale * 5;
+		auto outline = town_outline.scaledToWidth(sz, Qt::SmoothTransformation);
+		auto icon = town_color.scaledToWidth(sz, Qt::SmoothTransformation);
 			
-			QColor color = neutral_color;
-			if(town->player != PLAYER_NONE) {
-				if(town->player < map.player_configurations.size())
-					color = QColor(get_qcolor_for_player_color(map.player_configurations[town->player - 1].color));
-			}
-			//QPixmap pixmap = QPixmap::fromImage(icon);
-			QImage colored = icon.copy();
-			QPainter painter(&colored);
-			painter.setCompositionMode(QPainter::CompositionMode_SourceIn);
-			painter.setBrush(color);
-			painter.setPen(color);
-			painter.drawRect(colored.rect());
-			painter.end();
-			auto xpos = ((town->x + (town->width / 2.f)) / (float)map.width) * mapsize;
-			auto ypos = ((town->y + (town->height / 2.f)) / (float)map.height) * mapsize;
+		QColor color = neutral_color;
+		if(town->player != PLAYER_NONE && town->player <= map.player_configurations.size())
+			color = QColor(get_qcolor_for_player_color(map.player_configurations[town->player - 1].color));
+
+		//QPixmap pixmap = QPixmap::fromImage(icon);
+		QImage colored = icon.copy();
+		QPainter painter(&colored);
+		painter.setCompositionMode(QPainter::CompositionMode_SourceIn);
+		painter.setBrush(color);
+		painter.setPen(color);
+		painter.drawRect(colored.rect());
+		painter.end();
+		auto xpos = ((town->x + .5f) / (float)map.width) * mapsize;
+		auto ypos = ((town->y - 1.f) / (float)map.height) * mapsize;
 			
-			auto rect = QRectF(xpos - sz/2.f, ypos - sz/2.f, sz, sz);
-			painter1.drawImage(rect, outline);
-			//painter1.drawImage(rect, icon);
-			//painter1.drawPixmap(rect, pixmap, pixmap.rect());
-			painter1.drawImage(rect, colored, colored.rect());
-		}
-		
-		
-		if(obj->object_type == OBJECT_MINE) {
-			auto mine = (mine_t*)obj;
-			
-			if(game && !game->is_tile_visible(mine->x, mine->y, player))
-				continue;
-			
-			
-			float sz = scale * 4;
-			auto outline = mine_outline.scaledToWidth(sz, Qt::SmoothTransformation);
-			auto icon = mine_color.scaledToWidth(sz, Qt::SmoothTransformation);
-			
-			
-			QColor color = neutral_color;
-			if(mine->owner != PLAYER_NONE) {
-				if(mine->owner < map.player_configurations.size())
-					color = QColor(get_qcolor_for_player_color(map.player_configurations[mine->owner - 1].color));
-			}
-			//QPixmap pixmap = QPixmap::fromImage(icon);
-			QImage colored = icon.copy();
-			QPainter painter(&colored);
-			painter.setCompositionMode(QPainter::CompositionMode_SourceIn);
-			painter.setBrush(color);
-			painter.setPen(color);
-			painter.drawRect(colored.rect());
-			painter.end();
-			
-			//mine->width
-			auto xpos = ((mine->x + (mine->width / 2.f)) / (float)map.width) * mapsize;
-			auto ypos = ((mine->y + (mine->height / 2.f)) / (float)map.height) * mapsize;
-			auto rect = QRectF(xpos - sz/2.f, ypos - sz/2.f, sz, sz);
-			painter1.drawImage(rect, outline);
-			//painter1.drawImage(rect, icon);
-			//painter1.drawPixmap(rect, pixmap, pixmap.rect());
-			painter1.drawImage(rect, colored, colored.rect());
-		}
+		auto rect = QRectF(xpos - sz/2.f, ypos - sz/2.f, sz, sz);
+		painter1.drawImage(rect, outline);
+		//painter1.drawImage(rect, icon);
+		//painter1.drawPixmap(rect, pixmap, pixmap.rect());
+		painter1.drawImage(rect, colored, colored.rect());
 	}
 	
 	for(auto& h : map.heroes) {
@@ -2696,10 +2477,11 @@ void draw_minimap(QImage& image, uint pixel_size, const adventure_map_t& map, co
 		auto icon = hero_color.scaledToWidth(scale * 2, Qt::SmoothTransformation);
 		
 		QColor color = neutral_color;
-		if(h.second.player != PLAYER_NONE) {
+		if(h.second.player != PLAYER_NONE && h.second.player <= map.player_configurations.size()) {
 			auto pc = map.player_configurations[h.second.player - 1];
 			color = QColor(get_qcolor_for_player_color(pc.color));
 		}
+
 		QImage colored = icon.copy();
 		QPainter painter(&colored);
 		painter.setCompositionMode(QPainter::CompositionMode_SourceIn);
@@ -2712,8 +2494,7 @@ void draw_minimap(QImage& image, uint pixel_size, const adventure_map_t& map, co
 		//painter1.drawImage(rect, icon);
 		painter1.drawImage(rect, outline);
 		painter1.drawImage(rect, colored, colored.rect());
-	}
-	
+	}	
 	
 	//draw fog on top of all objects and terrain
 	auto fog_overlay_image = map.width > map.height ? fog_img.scaledToWidth(mapsize) : fog_img.scaledToHeight(mapsize);

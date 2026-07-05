@@ -1,45 +1,11 @@
 #pragma once
 
 #include "core/adventure_map.h"
-#include "utils.h"
 #include "core/game_config.h"
-#include "core/magic_enum.hpp"
 
 #include <cstdio>
 
 #include "core/qt_headers.h"
-
-/*
-Structure of a map file: (OUTDATED!!)
-
-header
-    -version information [major, minor]
-    -map size [width, height]
-    -map name [32 utf8 characters]
-    -map description [256 utf8 characters]
-    -players
-    -difficulty
-    -win/loss conditions
-    -minimap 'image' []
-
-
-[ -zip 'file'
-    /models -custom models for map objects or creatures
-    /creatures -custom creatures
-    /images -custom images for heroes, etc.
-    /scripts -custom scripts for map objects, events, etc.
-
-    map_data -map data
-        -map tiles
-            -terrain
-            -doodads
-        -events
-		-rumors
-		-castles/towns
-		-heroes
-		
-]
-*/
 
 struct map_file_header_t {
 	QUuid map_uuid;
@@ -58,11 +24,11 @@ struct map_file_header_t {
 const int MAP_FILE_HEADER_SIZE = sizeof(map_file_header_t);
 const int MINIMUM_MAP_WIDTH = 32;
 const int MINIMUM_MAP_HEIGHT = 32;
-const int MAXIMUM_MAP_WIDTH = 512;
-const int MAXIMUM_MAP_HEIGHT = 512;
+const int MAXIMUM_MAP_WIDTH = 250;
+const int MAXIMUM_MAP_HEIGHT = 250;
 const int MAXIMUM_DOODAD_COUNT = 100000;
-const int MAXIMUM_OBJECTS_COUNT = 50000;
-const int MAXIMUM_HERO_COUNT = 64;
+const int MAXIMUM_OBJECTS_COUNT = 60000;
+const int MAXIMUM_HERO_COUNT = 128;
 const int MAXIMUM_TOWN_COUNT = 128;
 
 //todo: add error codes
