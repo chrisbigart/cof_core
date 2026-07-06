@@ -401,6 +401,11 @@ struct combat_stats_t {
 	uint16_t friendly_fire_spell_hits = 0;
 	uint32_t friendly_fire_spell_damage = 0;
 	uint16_t unique_spells_cast = 0;
+	uint16_t genie_friendly_spells_cast = 0;
+	uint16_t titanic_smackdowns = 0;
+	uint16_t tier6_killed_by_tier1_army = 0;
+	uint16_t maximum_overkill_hits = 0;
+	uint16_t exact_melee_kills = 0;
 };
 
 struct battlefield_t {

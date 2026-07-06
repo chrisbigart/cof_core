@@ -1,6 +1,7 @@
 #include "combat_training.h"
 
 #include "combat_observation.h"
+#include "core/magic_enum.hpp"
 
 #include <algorithm>
 #include <limits>
@@ -457,4 +458,3 @@ void dqn_trainer_t::update_target_network() {
         target_agent->model()->load(input);
         target_agent->model()->eval();
 }
-

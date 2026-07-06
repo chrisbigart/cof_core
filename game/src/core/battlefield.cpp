@@ -1497,6 +1497,11 @@ spell_result_e battlefield_t::cast_spell(battlefield_unit_t* caster, spell_e spe
 	target_unit->add_buff(buff, duration, magnitude);
 	caster->spell_casts_remaining--;
 	caster->has_cast_spell = true;
+	if(caster->unit_type == UNIT_GENIE && target_unit->is_attacker == caster->is_attacker) {
+		total_stats.genie_friendly_spells_cast++;
+		auto& stats = caster->is_attacker ? attacker_stats : defender_stats;
+		stats.genie_friendly_spells_cast++;
+	}
 
 	if(!is_quick_combat) {
 		battle_action_t action;
@@ -2283,6 +2288,18 @@ spell_result_e battlefield_t::cast_spell(hero_t* caster, spell_e spell_id, int t
 
 			if(attacking_hero && attacking_hero->has_talent(TALENT_ETHER_FEAST))
 				restore_hero_mana(attacking_hero, std::round(mana_cost * .3f), TALENT_ETHER_FEAST);
+		}
+	}
+	if(total_damage > 0) {
+		auto& cstats = (caster == attacking_hero ? attacker_stats : defender_stats);
+		switch(spell.get_damage_component_type()) {
+			case MAGIC_DAMAGE_FIRE: total_stats.fire_spell_damage += total_damage; cstats.fire_spell_damage += total_damage; break;
+			case MAGIC_DAMAGE_FROST: total_stats.frost_spell_damage += total_damage; cstats.frost_spell_damage += total_damage; break;
+			case MAGIC_DAMAGE_LIGHTNING: total_stats.lightning_spell_damage += total_damage; cstats.lightning_spell_damage += total_damage; break;
+			case MAGIC_DAMAGE_EARTH: total_stats.earth_spell_damage += total_damage; cstats.earth_spell_damage += total_damage; break;
+			case MAGIC_DAMAGE_CHAOS: total_stats.chaos_spell_damage += total_damage; cstats.chaos_spell_damage += total_damage; break;
+			case MAGIC_DAMAGE_HOLY: total_stats.holy_spell_damage += total_damage; cstats.holy_spell_damage += total_damage; break;
+			default: break;
 		}
 	}
 	
@@ -4461,6 +4478,10 @@ bool battlefield_t::attack_unit(battlefield_unit_t& attacker, battlefield_unit_t
 	if(luck_effect == 1) {
 		total_stats.total_positive_luck_procs++;
 		attacking_unit_stats.total_positive_luck_procs++;
+		if(ranged_attack) {
+			total_stats.total_critical_hits++;
+			attacking_unit_stats.total_critical_hits++;
+		}
 	}
 	else if(luck_effect == -1) {
 		total_stats.total_negative_luck_procs++;
@@ -4581,6 +4602,7 @@ bool battlefield_t::attack_unit(battlefield_unit_t& attacker, battlefield_unit_t
 	
 	auto damage = calculate_damage(attacker, defender, ranged_attack, false, attack_from_hex, source_movement_hex);
 	damage = apply_luck_damage_modifier(attacker, damage, luck_effect);
+	const uint32_t defender_remaining_hp = get_unit_adjusted_hp(defender) * defender.stack_size;
 	auto kills = deal_damage_to_stack(damage, defender);
 
 	if(!ranged_attack && damage > total_stats.max_damage_single_melee_attack) {
@@ -4588,6 +4610,34 @@ bool battlefield_t::attack_unit(battlefield_unit_t& attacker, battlefield_unit_t
 		auto& stats = attacker.is_attacker ? attacker_stats : defender_stats;
 		if(damage > stats.max_damage_single_melee_attack)
 			stats.max_damage_single_melee_attack = damage;
+	}
+	if(!ranged_attack && defender_remaining_hp > 0 && defender.stack_size == 0) {
+		auto& stats = attacker.is_attacker ? attacker_stats : defender_stats;
+		if(damage == defender_remaining_hp) {
+			total_stats.exact_melee_kills++;
+			stats.exact_melee_kills++;
+		}
+		if(damage >= defender_remaining_hp * 100ull) {
+			total_stats.maximum_overkill_hits++;
+			stats.maximum_overkill_hits++;
+		}
+	}
+	if(attacker.unit_type == UNIT_TITAN && damage >= 5000) {
+		total_stats.titanic_smackdowns++;
+		attacking_unit_stats.titanic_smackdowns++;
+	}
+	if(defender.stack_size == 0 && game_config::get_creature(defender.unit_type).tier >= 6) {
+		bool only_tier1 = true;
+		for(const auto& troop : army_of_attacker.troops) {
+			if(!troop.is_empty() && troop.stack_size > 0 && game_config::get_creature(troop.unit_type).tier != 1) {
+				only_tier1 = false;
+				break;
+			}
+		}
+		if(only_tier1) {
+			total_stats.tier6_killed_by_tier1_army++;
+			attacking_unit_stats.tier6_killed_by_tier1_army++;
+		}
 	}
 
 	//apply bonechill debuff on melee attack (if talent applies)

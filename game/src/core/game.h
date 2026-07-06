@@ -130,6 +130,7 @@ struct resource_stats_t {
 	resource_group_t total_resources_spent_on_creatures;
 	uint32_t total_experience_from_chests = 0;
 	uint32_t total_gold_from_chests = 0;
+	uint16_t total_mysterious_boxes_opened = 0;
 };
 
 struct construction_stats_t {
@@ -187,6 +188,7 @@ struct game_stats_t {
 	uint8_t total_players_defeated = 0;
 	uint16_t total_creatures_rescued_from_banks = 0;
 	uint16_t total_dragons_defeated_from_topes = 0;
+	std::map<achievement_e, uint32_t> achievement_event_counts;
 
 	combat_stats_t cumulative_combat_stats;
 };
@@ -484,16 +486,24 @@ template<typename T1, typename T2> bool game_t::update_achievement_stats(T1& sta
 		return false;
 
 	const auto& adata = game_config::get_achievement(related_achievement);
+	bool has_tier = false;
 	
 	for(const auto& tier : adata.tiers) {
 		if(tier.value == 0)
-			return false;
+			continue;
 
+		has_tier = true;
 		if(previous_value < tier.value && stat_value_ref >= tier.value) {
 			if(achievement_earned_callback_fn)
 				achievement_earned_callback_fn(related_achievement);
 			return true;
 		}
+	}
+
+	if(!has_tier && previous_value == 0 && stat_value_ref > 0) {
+		if(achievement_earned_callback_fn)
+			achievement_earned_callback_fn(related_achievement);
+		return true;
 	}
 
 	return false;
