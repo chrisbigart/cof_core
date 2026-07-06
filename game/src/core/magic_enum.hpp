@@ -95,7 +95,7 @@
 // Enum value must be less or equals than MAGIC_ENUM_RANGE_MAX. By default MAGIC_ENUM_RANGE_MAX = 128.
 // If need another max range for all enum types by default, redefine the macro MAGIC_ENUM_RANGE_MAX.
 #if !defined(MAGIC_ENUM_RANGE_MAX)
-#  define MAGIC_ENUM_RANGE_MAX 127
+#  define MAGIC_ENUM_RANGE_MAX 256
 #endif
 
 // Improve ReSharper C++ intellisense performance with builtins, avoiding unnecessary template instantiations.

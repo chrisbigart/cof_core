@@ -141,6 +141,74 @@ void update_resource_achievement_stats(game_t& game, resource_group_t& stat_grou
 	game.update_achievement_stats(resource_value->value, amount, achievement);
 }
 
+void update_resource_achievement_stats(game_t& game, resource_group_t& stat_group, const resource_group_t& income, achievement_e achievement) {
+	for(const auto& value : income.values)
+		update_resource_achievement_stats(game, stat_group, value.type, value.value, achievement == ACHIEVEMENT_NONE ? get_achievement_for_mines(income) : achievement);
+}
+
+void update_achievement_event(game_t& game, game_stats_t& stats, achievement_e achievement, uint32_t amount = 1) {
+	game.update_achievement_stats(stats.achievement_event_counts[achievement], amount, achievement);
+}
+
+void update_backpack_achievement_stats(game_t& game, hero_t* hero) {
+	if(!hero || hero->player == PLAYER_NONE || !hero->is_backpack_full())
+		return;
+
+	update_achievement_event(game, game.get_player(hero->player).player_stats, ACHIEVEMENT_BILBO_BAGGINS);
+}
+
+void update_combat_achievement_stats(game_t& game, player_t& player, const combat_stats_t& battle_stats, bool won, const hero_t* hero, const hero_t* opponent) {
+	auto& cumulative = player.player_stats.cumulative_combat_stats;
+	game.update_achievement_stats(cumulative.genie_friendly_spells_cast, battle_stats.genie_friendly_spells_cast, ACHIEVEMENT_I_DREAM_OF_GENIE);
+	game.update_achievement_stats(cumulative.fire_spell_damage, battle_stats.fire_spell_damage, ACHIEVEMENT_IN_FLAMES);
+	game.update_achievement_stats(cumulative.frost_spell_damage, battle_stats.frost_spell_damage, ACHIEVEMENT_WINTER_IS_COMING);
+	game.update_achievement_stats(cumulative.lightning_spell_damage, battle_stats.lightning_spell_damage, ACHIEVEMENT_STORM_DRINKER);
+	game.update_achievement_stats(cumulative.earth_spell_damage, battle_stats.earth_spell_damage, ACHIEVEMENT_EARTHSHAKER);
+	game.update_achievement_stats(cumulative.chaos_spell_damage, battle_stats.chaos_spell_damage, ACHIEVEMENT_CHAOS_THEORY);
+	game.update_achievement_stats(cumulative.holy_spell_damage, battle_stats.holy_spell_damage, ACHIEVEMENT_BLINDED_BY_THE_LIGHT);
+	game.update_achievement_stats(cumulative.total_critical_hits, battle_stats.total_critical_hits, ACHIEVEMENT_SHOT_THROUGH_THE_HEART);
+	game.update_achievement_stats(cumulative.total_units_killed, battle_stats.total_units_killed, ACHIEVEMENT_THE_REAPER);
+	game.update_achievement_stats(cumulative.max_damage_single_melee_attack, battle_stats.max_damage_single_melee_attack, ACHIEVEMENT_ONE_PUNCH_HERO);
+	game.update_achievement_stats(cumulative.death_cloud_7units, battle_stats.death_cloud_7units, ACHIEVEMENT_CLOUD_OF_DEATH);
+
+	if(battle_stats.frost_kill_fire_immune) update_achievement_event(game, player.player_stats, ACHIEVEMENT_QUENCHING_THE_FLAME);
+	if(battle_stats.chain_lightning_5kills) update_achievement_event(game, player.player_stats, ACHIEVEMENT_CONDUCTIVE_CRITTERS);
+	if(battle_stats.meteor_shower_75kills) update_achievement_event(game, player.player_stats, ACHIEVEMENT_METEORIC_RISE);
+	if(battle_stats.implosion_finish_necromancer) update_achievement_event(game, player.player_stats, ACHIEVEMENT_GRAVE_MISTAKE);
+	if(battle_stats.resurrection_1000hp) update_achievement_event(game, player.player_stats, ACHIEVEMENT_SECOND_LIFE);
+	if(battle_stats.unique_spells_cast >= 6) update_achievement_event(game, player.player_stats, ACHIEVEMENT_CREATIVE_CASTER);
+	if(battle_stats.armageddon_5000_damage) update_achievement_event(game, player.player_stats, ACHIEVEMENT_WATCH_THE_WORLD_BURN);
+	if(battle_stats.total_spells_cast_nature && battle_stats.total_spells_cast_arcane && battle_stats.total_spells_cast_holy && battle_stats.total_spells_cast_destruction && battle_stats.total_spells_cast_death)
+		update_achievement_event(game, player.player_stats, ACHIEVEMENT_MASTER_OF_THE_ARCANE);
+	if(battle_stats.titanic_smackdowns) update_achievement_event(game, player.player_stats, ACHIEVEMENT_TITANIC_SMACKDOWN);
+	if(battle_stats.tier6_killed_by_tier1_army) update_achievement_event(game, player.player_stats, ACHIEVEMENT_THE_BIGGER_THEY_ARE);
+	if(battle_stats.maximum_overkill_hits) update_achievement_event(game, player.player_stats, ACHIEVEMENT_MAXIMUM_OVERKILL);
+	if(battle_stats.exact_melee_kills) update_achievement_event(game, player.player_stats, ACHIEVEMENT_CRUNCHING_NUMBERS);
+	if(battle_stats.total_attacks_made > 0 && battle_stats.total_attacks_made == battle_stats.total_critical_hits)
+		update_achievement_event(game, player.player_stats, ACHIEVEMENT_HIGH_ROLLER);
+
+	if(!won || !hero)
+		return;
+
+	if(battle_stats.friendly_fire_spell_hits) update_achievement_event(game, player.player_stats, ACHIEVEMENT_FRIENDLY_FIRE);
+	if(battle_stats.total_spell_damage_done > 0 && battle_stats.total_physical_damage_done == 0) update_achievement_event(game, player.player_stats, ACHIEVEMENT_BRAINS_BEATS_BRAWN);
+	if(hero->mana >= hero->get_maximum_mana() * 2) update_achievement_event(game, player.player_stats, ACHIEVEMENT_ENERGIZER_BUNNY);
+	if(hero->get_effective_attack() >= 99 || hero->get_effective_defense() >= 99) update_achievement_event(game, player.player_stats, ACHIEVEMENT_MAXED_OUT);
+	if(hero->get_effective_attack() >= 25 && hero->get_effective_defense() < 5) update_achievement_event(game, player.player_stats, ACHIEVEMENT_GLASS_CANNON);
+	if(hero->get_effective_defense() >= 25 && hero->get_effective_attack() < 5) update_achievement_event(game, player.player_stats, ACHIEVEMENT_IMMOVABLE_OBJECT);
+	if(opponent) {
+		const auto hero_stats = hero->get_effective_attack() + hero->get_effective_defense();
+		const auto opponent_stats = opponent->get_effective_attack() + opponent->get_effective_defense();
+		if(opponent_stats * 2 < hero_stats) update_achievement_event(game, player.player_stats, ACHIEVEMENT_OVERMATCHED);
+		if(hero->get_effective_attack() == opponent->get_effective_attack() && hero->get_effective_defense() == opponent->get_effective_defense())
+			update_achievement_event(game, player.player_stats, ACHIEVEMENT_EQUAL_GROUNDS);
+	}
+	if(battle_stats.total_units_killed >= 1000) update_achievement_event(game, player.player_stats, ACHIEVEMENT_MASSACRE);
+	if(battle_stats.total_units_lost == 0) update_achievement_event(game, player.player_stats, ACHIEVEMENT_FLAWLESS_EXECUTION);
+	else player.player_stats.achievement_event_counts[ACHIEVEMENT_FLAWLESS_EXECUTION] = 0;
+	if(battle_stats.total_units_lost == 0 && battle_stats.total_attacks_received >= 10) update_achievement_event(game, player.player_stats, ACHIEVEMENT_UNBREAKABLE);
+}
+
 achievement_e get_recruitment_achievement(unit_type_e unit_type) {
 	switch(unit_type) {
 		case UNIT_SKELETON:          return ACHIEVEMENT_RATTLE_AND_ROLL;
@@ -219,8 +287,15 @@ void game_t::check_for_game_status_updates() {
 	
 	if(game_status == GAME_STATUS_HUMAN_LOSS)
 		game_event_callback_fn(GAME_STATE_LOST_GAME, PLAYER_NONE, 0);
-	else if(game_status == GAME_STATUS_HUMAN_VICTORY)
+	else if(game_status == GAME_STATUS_HUMAN_VICTORY) {
+		if(map.loss_condition == LOSS_CONDITION_LOSE_TOWN) {
+			for(auto& pl : players) {
+				if(pl.is_human)
+					update_achievement_event(*this, pl.player_stats, ACHIEVEMENT_LAST_HOPE);
+			}
+		}
 		game_event_callback_fn(GAME_STATE_WON_GAME, PLAYER_NONE, 0);
+	}
 
 }
 
@@ -392,6 +467,17 @@ int game_t::reveal_area(player_e player, int x, int y, int reveal_radius, int ob
 
 	update_achievement_stats(get_player(player).player_stats.exploration.fog_tiles_revealed, revealed_tiles, ACHIEVEMENT_REVEALING_THE_UNKNOWN);
 
+	auto& pl = get_player(player);
+	if(pl.tile_visibility.count(true) == pl.tile_visibility.size() && pl.tile_visibility.size() > 0) {
+		const auto map_tiles = map.width * map.height;
+		if(map_tiles <= 72 * 72)
+			update_achievement_stats(pl.player_stats.exploration.maps_fully_revealed_small, 1, ACHIEVEMENT_EYE_SEE_YOU);
+		else if(map_tiles <= 108 * 108)
+			update_achievement_stats(pl.player_stats.exploration.maps_fully_revealed_medium, 1, ACHIEVEMENT_PAPER_VIEW);
+		else
+			update_achievement_stats(pl.player_stats.exploration.maps_fully_revealed_large, 1, ACHIEVEMENT_MAPQUEST);
+	}
+
 	return revealed_tiles;
 }
 
@@ -557,7 +643,10 @@ bool game_t::give_resources_from_player_to_player(player_e from_player_number, p
 	if(current_quantity < quantity_to_trade)
 		return false;
 	
-	
+	from_player.resources.sub_value(resource_type, quantity_to_trade);
+	to_player.resources.add_value(resource_type, quantity_to_trade);
+	update_achievement_event(*this, from_player.player_stats, ACHIEVEMENT_FRIENDLY_BARTER);
+	update_achievement_event(*this, to_player.player_stats, ACHIEVEMENT_IMMACULATE_RECEPTION);
 	
 	return true;
 }
@@ -765,7 +854,7 @@ void game_t::next_day() {
 			if(player != PLAYER_NONE && player != PLAYER_NEUTRAL) {
 				auto& pl = get_player(player);
 				pl.resources += income;
-				//update_achievement_stats(pl.player_stats.resources.total_resources_from_mines, income, get_achievement_for_mines(income));
+				update_resource_achievement_stats(*this, pl.player_stats.resources.total_resources_from_mines, income, get_achievement_for_mines(income));
 			}
 			
 		}
@@ -943,6 +1032,37 @@ bool game_t::battle_retreat() {
 }
 
 void game_t::accept_battle_results() {
+	const bool attacker_won = battle.result == BATTLE_ATTACKER_VICTORY || battle.result == BATTLE_DEFENDER_HAS_FLED;
+	const bool defender_won = battle.result == BATTLE_DEFENDER_VICTORY || battle.result == BATTLE_ATTACKER_HAS_FLED;
+	if(battle.attacking_hero && player_valid(battle.attacking_hero->player)) {
+		auto& player = get_player(battle.attacking_hero->player);
+		update_achievement_stats(player.player_stats.total_battles_fought, 1);
+		if(attacker_won) update_achievement_stats(player.player_stats.total_battles_won, 1);
+		else if(battle.result == BATTLE_BOTH_LOSE) update_achievement_stats(player.player_stats.total_battles_drawn, 1);
+		else update_achievement_stats(player.player_stats.total_battles_lost, 1);
+		update_combat_achievement_stats(*this, player, battle.attacker_stats, attacker_won, battle.attacking_hero, battle.defending_hero);
+		if(attacker_won && battle.round >= 20) update_achievement_event(*this, player.player_stats, ACHIEVEMENT_OUTLAST);
+		if(attacker_won && battle.defending_hero) update_achievement_stats(player.player_stats.total_players_defeated, 1, ACHIEVEMENT_CONQUISTADOR);
+		if(attacker_won && battle.is_creature_bank_battle) update_achievement_stats(player.player_stats.total_creatures_rescued_from_banks, battle.defender_stats.total_units_lost, ACHIEVEMENT_LIBERATOR);
+		if(attacker_won && battle.defending_map_object && battle.defending_map_object->object_type == OBJECT_DRAGON_UTOPIA)
+			update_achievement_stats(player.player_stats.total_dragons_defeated_from_topes, battle.defender_stats.total_units_lost, ACHIEVEMENT_DRAGON_SLAYER);
+	}
+	if(battle.defending_hero && player_valid(battle.defending_hero->player)) {
+		auto& player = get_player(battle.defending_hero->player);
+		update_achievement_stats(player.player_stats.total_battles_fought, 1);
+		if(defender_won) update_achievement_stats(player.player_stats.total_battles_won, 1);
+		else if(battle.result == BATTLE_BOTH_LOSE) update_achievement_stats(player.player_stats.total_battles_drawn, 1);
+		else update_achievement_stats(player.player_stats.total_battles_lost, 1);
+		update_combat_achievement_stats(*this, player, battle.defender_stats, defender_won, battle.defending_hero, battle.attacking_hero);
+		if(defender_won && battle.round >= 20) update_achievement_event(*this, player.player_stats, ACHIEVEMENT_OUTLAST);
+	}
+	if(defender_won && battle.defending_town && battle.defending_hero && player_valid(battle.defending_hero->player)) {
+		int remaining_units = 0;
+		for(const auto& troop : battle.get_remaining_troops_defender())
+			remaining_units += troop.stack_size;
+		if(remaining_units == 1)
+			update_achievement_stats(get_player(battle.defending_hero->player).player_stats.towns_defended_with_one_unit, 1, ACHIEVEMENT_ONE_MAN_ARMY);
+	}
 	if(battle.result == BATTLE_DEFENDER_VICTORY || battle.result == BATTLE_BOTH_LOSE || battle.result == BATTLE_ATTACKER_HAS_FLED) {
 		if(battle.defending_monster) {
 			uint16_t remaining = 0;
@@ -977,6 +1097,7 @@ void game_t::accept_battle_results() {
 			else {
 				for(const auto& art : battle.captured_artifacts)
 					battle.defending_hero->pickup_artifact(art);
+				update_backpack_achievement_stats(*this, battle.defending_hero);
 			}
 			
 			remove_hero_callback_fn(battle.attacking_hero, true);
@@ -996,6 +1117,7 @@ void game_t::accept_battle_results() {
 		else {
 			for(const auto& art : battle.captured_artifacts)
 				battle.attacking_hero->pickup_artifact(art);
+			update_backpack_achievement_stats(*this, battle.attacking_hero);
 		}
 		
 		if(battle.attacking_hero->get_secondary_skill_level(SKILL_NECROMANCY))
@@ -1013,6 +1135,7 @@ void game_t::accept_battle_results() {
 						artifact = adventure_map_t::get_random_artifact_of_rarity(RARITY_COMMON);
 					}
 					battle.attacking_hero->pickup_artifact(artifact);
+					update_backpack_achievement_stats(*this, battle.attacking_hero);
 					auto player = battle.attacking_hero->player;
 					if(player != PLAYER_NONE)
 						give_resource_to_player(player, RESOURCE_GOLD, graveyard->size * 1000 + 500);
@@ -1025,8 +1148,11 @@ void game_t::accept_battle_results() {
 					//but this skill is selected after we do the check below to see if they can learn it
 					auto pyramid = (pyramid_t*)battle.defending_map_object;
 					pyramid->visited = true;
-					if(battle.attacking_hero->can_learn_spell(pyramid->spell_id))
+					if(battle.attacking_hero->can_learn_spell(pyramid->spell_id)) {
 						battle.attacking_hero->learn_spell(pyramid->spell_id);
+						if(game_config::get_spell(pyramid->spell_id).level == 5)
+							update_achievement_stats(get_player(battle.attacking_hero->player).player_stats.achievement_event_counts[ACHIEVEMENT_ANCIENT_SECRETS], 1, ACHIEVEMENT_ANCIENT_SECRETS);
+					}
 			
 					//todo: if the hero can't learn the spell, have them write it down
 					//on to a spell scroll
@@ -1049,6 +1175,7 @@ void game_t::accept_battle_results() {
 				tr.clear();
 
 			battle.defending_town->player = battle.attacking_hero->player;
+			update_achievement_stats(get_player(battle.attacking_hero->player).player_stats.total_towns_captured, 1, ACHIEVEMENT_TOWNSHIP);
 			update_interactable_object_callback_fn(battle.defending_town);
 		}
 	}
@@ -1082,6 +1209,8 @@ map_action_e game_t::interact_with_object(hero_t* hero, interactable_object_t* o
 			}
 			case wagon_t::WAGON_REWARD_ARTIFACT: {
 				was_backpack_full = !(hero->pickup_artifact(wagon->artifact_id));
+				if(!was_backpack_full)
+					update_backpack_achievement_stats(*this, hero);
 				break;
 			}
 		}
@@ -1224,6 +1353,7 @@ map_action_e game_t::interact_with_object(hero_t* hero, interactable_object_t* o
 		}
 		else {
 			town->player = hero->player;
+			update_achievement_stats(get_player(hero->player).player_stats.total_towns_captured, 1, ACHIEVEMENT_TOWNSHIP);
 			map.hero_visit_town(hero, town);
 			return MAP_ACTION_OBJECT_UPDATED;
 		}
@@ -1293,6 +1423,7 @@ map_action_e game_t::interact_with_object(hero_t* hero, interactable_object_t* o
 		auto dest = destinations.at(rand() % destinations.size());
 		hero->x = dest->x;
 		hero->y = dest->y;
+		update_achievement_stats(get_player(hero->player).player_stats.exploration.portals_used, 1, ACHIEVEMENT_DIMENSIONAL_DRIFT);
 		
 		return MAP_ACTION_HERO_TELEPORTED;
 		}
@@ -1545,6 +1676,7 @@ bool game_t::pickup_object(hero_t* hero, interactable_object_t* object, int x, i
 
 		show_dialog_callback_fn(DIALOG_TYPE_PICKUP_ARTIFACT, object, hero, 0, 0);
 		hero->pickup_artifact(art->artifact_id);
+		update_backpack_achievement_stats(*this, hero);
 		
 		remove_interactable_object_callback_fn(object, false);
 		map.remove_interactable_object(object);
@@ -1596,6 +1728,7 @@ map_action_e game_t::make_dialog_choice(hero_t* hero, interactable_object_t* obj
 			return MAP_ACTION_NONE;
 
 		auto box = (pandoras_box_t*)object;
+		update_achievement_stats(get_player(hero->player).player_stats.resources.total_mysterious_boxes_opened, 1, ACHIEVEMENT_WHATS_IN_THE_BOX);
 		for(auto& reward: box->rewards) {
 			switch(reward.type) {
 				case pandoras_box_t::PANDORAS_BOX_REWARD_EXPERIENCE: {
@@ -1644,6 +1777,7 @@ map_action_e game_t::make_dialog_choice(hero_t* hero, interactable_object_t* obj
 		auto tomb = (warriors_tomb_t*)object;
 		//todo: check to see if hero's backpack is full
 		hero->pickup_artifact(tomb->artifact);
+		update_backpack_achievement_stats(*this, hero);
 		hero->add_temporary_morale_effect(MORALE_EFFECT_WARRIORS_TOMB, -3);
 		show_dialog_callback_fn(DIALOG_TYPE_WARRIORS_TOMB_REWARD, object, hero, 1, 0);
 		tomb->visited = true;

@@ -2,6 +2,8 @@
 
 #include "qt_headers.h"
 
+#include <limits>
+
 static inline QDataStream& operator<<(QDataStream& stream, const movement_stats_t& v) {
 	stream
 		<< quint64(v.total_hero_movement_points_spent)
@@ -87,7 +89,8 @@ static inline QDataStream& operator<<(QDataStream& stream, const resource_stats_
 		<< v.total_resources_spent_on_buildings
 		<< v.total_resources_spent_on_creatures
 		<< quint32(v.total_experience_from_chests)
-		<< quint32(v.total_gold_from_chests);
+		<< quint32(v.total_gold_from_chests)
+		<< quint16(v.total_mysterious_boxes_opened);
 	return stream;
 }
 
@@ -104,6 +107,8 @@ static inline QDataStream& operator>>(QDataStream& stream, resource_stats_t& v) 
 
 	stream >> tmp32; v.total_experience_from_chests = uint32_t(tmp32);
 	stream >> tmp32; v.total_gold_from_chests = uint32_t(tmp32);
+	quint16 tmp16 = 0;
+	stream >> tmp16; v.total_mysterious_boxes_opened = uint16_t(tmp16);
 	return stream;
 }
 
@@ -217,7 +222,12 @@ static inline QDataStream& operator<<(QDataStream& stream, const combat_stats_t&
 		<< quint16(v.frost_kill_fire_immune)
 		<< quint16(v.friendly_fire_spell_hits)
 		<< quint32(v.friendly_fire_spell_damage)
-		<< quint16(v.unique_spells_cast);
+		<< quint16(v.unique_spells_cast)
+		<< quint16(v.genie_friendly_spells_cast)
+		<< quint16(v.titanic_smackdowns)
+		<< quint16(v.tier6_killed_by_tier1_army)
+		<< quint16(v.maximum_overkill_hits)
+		<< quint16(v.exact_melee_kills);
 
 	return stream;
 }
@@ -287,6 +297,11 @@ static inline QDataStream& operator>>(QDataStream& stream, combat_stats_t& v) {
 	stream >> tmp16; v.friendly_fire_spell_hits = uint16_t(tmp16);
 	stream >> tmp32; v.friendly_fire_spell_damage = uint32_t(tmp32);
 	stream >> tmp16; v.unique_spells_cast = uint16_t(tmp16);
+	stream >> tmp16; v.genie_friendly_spells_cast = uint16_t(tmp16);
+	stream >> tmp16; v.titanic_smackdowns = uint16_t(tmp16);
+	stream >> tmp16; v.tier6_killed_by_tier1_army = uint16_t(tmp16);
+	stream >> tmp16; v.maximum_overkill_hits = uint16_t(tmp16);
+	stream >> tmp16; v.exact_melee_kills = uint16_t(tmp16);
 
 	return stream;
 }
@@ -354,6 +369,11 @@ static inline combat_stats_t operator+(const combat_stats_t& a, const combat_sta
 	out.friendly_fire_spell_hits += b.friendly_fire_spell_hits;
 	out.friendly_fire_spell_damage += b.friendly_fire_spell_damage;
 	out.unique_spells_cast += b.unique_spells_cast;
+	out.genie_friendly_spells_cast += b.genie_friendly_spells_cast;
+	out.titanic_smackdowns += b.titanic_smackdowns;
+	out.tier6_killed_by_tier1_army += b.tier6_killed_by_tier1_army;
+	out.maximum_overkill_hits += b.maximum_overkill_hits;
+	out.exact_melee_kills += b.exact_melee_kills;
 
 	return out;
 }
@@ -397,6 +417,10 @@ static inline QDataStream& operator<<(QDataStream& stream, const game_stats_t& v
 		<< quint16(v.total_creatures_rescued_from_banks)
 		<< quint16(v.total_dragons_defeated_from_topes)
 		<< v.cumulative_combat_stats;
+
+	stream << quint16(std::min<size_t>(v.achievement_event_counts.size(), std::numeric_limits<quint16>::max()));
+	for(const auto& [achievement, count] : v.achievement_event_counts)
+		stream << quint16(achievement) << quint32(count);
 
 	return stream;
 }
@@ -442,6 +466,13 @@ static inline QDataStream& operator>>(QDataStream& stream, game_stats_t& v) {
 	stream >> tmp16; v.total_creatures_rescued_from_banks = uint16_t(tmp16);
 	stream >> tmp16; v.total_dragons_defeated_from_topes = uint16_t(tmp16);
 	stream >> v.cumulative_combat_stats;
+	stream >> tmp16;
+	v.achievement_event_counts.clear();
+	for(uint16_t i = 0; i < tmp16; i++) {
+		quint16 achievement = 0;
+		stream >> achievement >> tmp32;
+		v.achievement_event_counts[(achievement_e)achievement] = uint32_t(tmp32);
+	}
 
 	return stream;
 }
@@ -490,6 +521,7 @@ static inline game_stats_t operator+(const game_stats_t& a, const game_stats_t& 
 	out.resources.total_resources_spent_on_creatures = out.resources.total_resources_spent_on_creatures + b.resources.total_resources_spent_on_creatures;
 	out.resources.total_experience_from_chests += b.resources.total_experience_from_chests;
 	out.resources.total_gold_from_chests += b.resources.total_gold_from_chests;
+	out.resources.total_mysterious_boxes_opened += b.resources.total_mysterious_boxes_opened;
 
 	// construction
 	out.construction.total_forts_built += b.construction.total_forts_built;
@@ -543,6 +575,8 @@ static inline game_stats_t operator+(const game_stats_t& a, const game_stats_t& 
 	out.total_players_defeated = uint8_t(out.total_players_defeated + b.total_players_defeated);
 	out.total_creatures_rescued_from_banks += b.total_creatures_rescued_from_banks;
 	out.total_dragons_defeated_from_topes += b.total_dragons_defeated_from_topes;
+	for(const auto& [achievement, count] : b.achievement_event_counts)
+		out.achievement_event_counts[achievement] += count;
 
 	// combat (assumes combat_stats_t supports operator+)
 	out.cumulative_combat_stats = out.cumulative_combat_stats + b.cumulative_combat_stats;
