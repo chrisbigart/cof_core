@@ -1312,6 +1312,11 @@ map_action_e adventure_map_t::move_hero_to_tile(hero_t& hero, int x, int y, game
 	auto& destination_tile = get_tile(x, y);
 	auto diagonal = are_tiles_diagonal(hero.x, hero.y, x, y);
 	auto movement_cost = get_terrain_movement_cost(&hero, x, y, diagonal);
+	if(hero.get_secondary_skill_level(SKILL_PATHFINDING)) {
+		auto obj = get_interactable_object_for_tile(x, y);
+		if(interactable_object_t::is_pickupable(obj))
+			movement_cost = 0;
+	}
 		
 	hero.movement_points -= movement_cost;
 

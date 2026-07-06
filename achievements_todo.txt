@@ -1,0 +1,99 @@
+Unfinished achievements audit
+=============================
+
+Scope and criteria
+------------------
+This list is based on config/achievements.tsv and the current core gameplay code.
+An achievement is listed here when it does not have a live gameplay path that calls
+update_achievement_stats(...) for it.
+
+Notes:
+- ACHIEVEMENT_WHATS_IN_THE_BOX is present in config/achievements.tsv but is missing
+  from the C++ achievement_e enum in game/src/core/achievements.h.
+- ACHIEVEMENT_I_DREAM_OF_JEANNIE is present in the C++ enum, but the config row is
+  ACHIEVEMENT_I_DREAM_OF_GENIE.
+- The mine-income achievements have get_achievement_for_mines(...) support, but the
+  daily mine-income update is currently commented out, so they are still unfinished.
+
+Unfinished achievements
+-----------------------
+
+Exploration / map reveal
+~~~~~~~~~~~~~~~~~~~~~~~~
+- ACHIEVEMENT_DIMENSIONAL_DRIFT — Dimensional Drift — Travel through {x} portals on the adventure map.
+- ACHIEVEMENT_EYE_SEE_YOU — Eye See You — Fully reveal a small size map.
+- ACHIEVEMENT_PAPER_VIEW — Paper View — Fully reveal a medium sized map.
+- ACHIEVEMENT_MAPQUEST — Mapquest — Fully reveal a large sized map.
+
+Acquisition / resources
+~~~~~~~~~~~~~~~~~~~~~~~
+- ACHIEVEMENT_ORESON_WELLS — Oreson Wells — Mine {x} ore from ore mines.
+- ACHIEVEMENT_WOODY_HARRELSON — Woody Harrelson — Harvest {x} wood from sawmills.
+- ACHIEVEMENT_GEM_CARREY — Gem Carrey — Mine {x} gems from gem mines.
+- ACHIEVEMENT_FREDDIE_MERCURY — Freddie Mercury — Collect {x} mercury from alchemy labs.
+- ACHIEVEMENT_BILLY_CRYSTAL — Billy Crystal — Mine {x} crystals from crystal mines.
+- ACHIEVEMENT_JEFF_GOLDBLUM — Jeff Goldblum — Mine {x} gold from gold mines.
+- ACHIEVEMENT_WHATS_IN_THE_BOX — What's in the Box?! — Open {x} Mysterious Boxes.
+
+Conquest / scenario
+~~~~~~~~~~~~~~~~~~~
+- ACHIEVEMENT_TOWNSHIP — Township — Capture {x} towns.
+- ACHIEVEMENT_CONQUISTADOR — Conquistador — Defeat {x} players in a game.
+- ACHIEVEMENT_LIBERATOR — Liberator — Rescue {x} creatures from creature banks.
+- ACHIEVEMENT_DRAGON_SLAYER — Dragon Slayer — Defeat {x} Dragons in Dragon Utopias.
+- ACHIEVEMENT_ONE_MAN_ARMY — One Man Army — Successfully defend a town with only 1 unit.
+- ACHIEVEMENT_LAST_HOPE — Last Hope — Complete a scenario where the loss condition is "Lose a specific town".
+
+Magic / spell combat
+~~~~~~~~~~~~~~~~~~~~
+- ACHIEVEMENT_I_DREAM_OF_GENIE — I Dream of Genie — Cast {x} spells on friendly troops with your Genies.
+- ACHIEVEMENT_ANCIENT_SECRETS — Ancient Secrets — Learn {x} level 5 spells by defeating Pyramid guards.
+- ACHIEVEMENT_IN_FLAMES — In Flames — Deal {x} Fire damage with spells.
+- ACHIEVEMENT_WINTER_IS_COMING — Winter Is Coming — Deal {x} Frost damage with spells.
+- ACHIEVEMENT_STORM_DRINKER — Storm Drinker — Deal {x} Lightning damage with spells.
+- ACHIEVEMENT_EARTHSHAKER — Earthshaker — Deal {x} Earth damage with spells.
+- ACHIEVEMENT_CHAOS_THEORY — Chaos Theory — Deal {x} Chaos damage with spells.
+- ACHIEVEMENT_BLINDED_BY_THE_LIGHT — Blinded by the Light — Deal {x} Holy damage with spells.
+- ACHIEVEMENT_FRIENDLY_FIRE — Friendly Fire — Damage your own units with spells while still winning the battle.
+- ACHIEVEMENT_QUENCHING_THE_FLAME — Quenching the Flame — Use a spell that deals Frost damage to kill a stack of units that is immune to Fire damage.
+- ACHIEVEMENT_CONDUCTIVE_CRITTERS — Conductive Critters — Kill at least four different unit stacks with a single cast of Chain Lightning.
+- ACHIEVEMENT_BRAINS_BEATS_BRAWN — Brains Beats Brawn — Win a battle while dealing damage exclusively with spells.
+- ACHIEVEMENT_METEORIC_RISE — Meteoric Rise — Kill at least 75 units with one cast of Meteor Shower.
+- ACHIEVEMENT_GRAVE_MISTAKE — Grave Mistake — Use Implosion to finish off an enemy Necromancer hero.
+- ACHIEVEMENT_SECOND_LIFE — Second Life — Bring back at least 1,000 total HP worth of units in a single cast of Resurrection.
+- ACHIEVEMENT_CREATIVE_CASTER — Creative Caster — Cast at least 6 different spells in a single battle.
+- ACHIEVEMENT_WATCH_THE_WORLD_BURN — Watch the World Burn — Use Armageddon to deal at least 5,000 total damage in a single cast.
+- ACHIEVEMENT_TURTLING_UP — Turtling Up — Win a battle where all your units were under Stone Skin and Shield for at least 5 rounds.
+- ACHIEVEMENT_MASTER_OF_THE_ARCANE — Master of the Arcane — Cast every single school of magic at least once in a battle.
+- ACHIEVEMENT_ENERGIZER_BUNNY — Energizer Bunny — End a battle with at least double your starting mana.
+
+Might / battle feats
+~~~~~~~~~~~~~~~~~~~~
+- ACHIEVEMENT_SHOT_THROUGH_THE_HEART — Shot Through the Heart — Land {x} Critical Strikes with your units' ranged attacks.
+- ACHIEVEMENT_MAXED_OUT — Maxed Out — Reach 99 Attack or Defense skill in a game.
+- ACHIEVEMENT_GLASS_CANNON — Glass Cannon — Have 25+ Attack skill but less than 5 Defense when winning a battle.
+- ACHIEVEMENT_IMMOVABLE_OBJECT — Immovable Object — Have 25+ Defense skill but less than 5 Attack when winning a battle.
+- ACHIEVEMENT_OVERMATCHED — Overmatched — Defeat an enemy hero whose Attack + Defense is less than half of yours.
+- ACHIEVEMENT_EQUAL_GROUNDS — Equal Grounds — Win a battle where both heroes have identical Attack and Defense stats.
+- ACHIEVEMENT_MASSACRE — Massacre — Kill 1,000+ creatures in a single battle.
+- ACHIEVEMENT_THE_REAPER — The Reaper — Kill 10,000+ creatures over multiple battles in one game.
+- ACHIEVEMENT_ONE_PUNCH_HERO — One Punch Hero — Deal 10,000+ damage in a single melee attack.
+- ACHIEVEMENT_TITANIC_SMACKDOWN — Titanic Smackdown — Deal 5,000+ damage in one hit with Titans.
+- ACHIEVEMENT_THE_BIGGER_THEY_ARE — The Bigger They Are... — Kill a Tier 6 creature with only Tier 1 creatures in your army.
+- ACHIEVEMENT_UNBREAKABLE — Unbreakable — Win a battle without losing a single unit while being attacked at least 10 times.
+- ACHIEVEMENT_OUTLAST — Outlast — Win a battle that lasts at least 20 rounds.
+- ACHIEVEMENT_FLAWLESS_EXECUTION — Flawless Execution — Win 5 battles in a row without losing any units.
+- ACHIEVEMENT_HIGH_ROLLER — High Roller — Win a battle where every attack is a critical strike.
+- ACHIEVEMENT_MAXIMUM_OVERKILL — Maximum Overkill — Deal 100x more damage than needed to kill a unit.
+- ACHIEVEMENT_CRUNCHING_NUMBERS — Crunching Numbers — Deal exactly enough damage to kill an enemy unit with a melee attack.
+
+PvP / cooperative / meta / miscellaneous feats
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+- ACHIEVEMENT_PVPWNAGE — PvPwnage — Win {x} games versus an opponent in an online PvP match.
+- ACHIEVEMENT_BILBO_BAGGINS — Bilbo Baggins — Completely fill your Conqueror's backpack.
+- ACHIEVEMENT_CLOUD_OF_DEATH — Cloud of Death — Hit 7 different units with one death cloud attack from your Liches.
+- ACHIEVEMENT_WANTED — Wanted — Accumulate 15 Outlaw stacks on a single Conqueror.
+- ACHIEVEMENT_RNGESUS_TAKE_THE_WHEEL — RNGesus Take the Wheel — Roll maximum attack damage on 3 consecutive attacks, without Luck or Bless effects.
+- ACHIEVEMENT_BANNERMAN — Bannerman — Obtain {x} banner sigils by completing achievements.
+- ACHIEVEMENT_FRIENDLY_BARTER — Friendly Barter — Give resources to an allied player in a hotseat or allied online game.
+- ACHIEVEMENT_IMMACULATE_RECEPTION — Immaculate Reception — Receive resources from an allied player in a hotseat or allied online game.

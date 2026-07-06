@@ -490,7 +490,8 @@ template<typename T1, typename T2> bool game_t::update_achievement_stats(T1& sta
 			return false;
 
 		if(previous_value < tier.value && stat_value_ref >= tier.value) {
-			achievement_earned_callback_fn(related_achievement);
+			if(achievement_earned_callback_fn)
+				achievement_earned_callback_fn(related_achievement);
 			return true;
 		}
 	}

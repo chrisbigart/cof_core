@@ -85,6 +85,9 @@ bool is_basic_resource(resource_e resource_type) {
 }
 achievement_e get_achievement_for_mines(const resource_group_t& res_group) {
 	for(const auto& v : res_group.values) {
+		if(v.value == 0)
+			continue;
+
 		switch(v.type) {
 			case RESOURCE_ORE:      return ACHIEVEMENT_ORESON_WELLS;
 			case RESOURCE_WOOD:     return ACHIEVEMENT_WOODY_HARRELSON;
@@ -101,6 +104,9 @@ achievement_e get_achievement_for_mines(const resource_group_t& res_group) {
 
 achievement_e get_achievement_for_resources(const resource_group_t& res_group) {
 	for(const auto& v : res_group.values) {
+		if(v.value == 0)
+			continue;
+
 		switch(v.type) {
 			case RESOURCE_GOLD:     return ACHIEVEMENT_MONEY_ON_MY_MIND;
 			case RESOURCE_GEMS:     return ACHIEVEMENT_SHINE_BRIGHT_LIKE_A_DIAMOND;
@@ -113,6 +119,68 @@ achievement_e get_achievement_for_resources(const resource_group_t& res_group) {
 	}
 
 	return ACHIEVEMENT_NONE;
+}
+
+resource_value_t* get_resource_value_for_type(resource_group_t& res_group, resource_e resource_type) {
+	for(auto& value : res_group.values) {
+		if(value.type == resource_type)
+			return &value;
+	}
+
+	return nullptr;
+}
+
+void update_resource_achievement_stats(game_t& game, resource_group_t& stat_group, resource_e resource_type, uint32_t amount, achievement_e achievement) {
+	if(amount == 0)
+		return;
+
+	auto resource_value = get_resource_value_for_type(stat_group, resource_type);
+	if(!resource_value)
+		return;
+
+	game.update_achievement_stats(resource_value->value, amount, achievement);
+}
+
+achievement_e get_recruitment_achievement(unit_type_e unit_type) {
+	switch(unit_type) {
+		case UNIT_SKELETON:          return ACHIEVEMENT_RATTLE_AND_ROLL;
+		case UNIT_GHOUL:             return ACHIEVEMENT_GRAVE_CONSEQUENCES;
+		case UNIT_VAMPIRE:           return ACHIEVEMENT_CHILDREN_OF_THE_NIGHT;
+		case UNIT_LICH:              return ACHIEVEMENT_DUST_TO_DUST;
+		case UNIT_ABOMINATION:       return ACHIEVEMENT_MONSTROSITY_UNLEASHED;
+		case UNIT_BONE_WYRM:         return ACHIEVEMENT_WINGS_OF_DEATH;
+		case UNIT_GOBLIN:            return ACHIEVEMENT_GREEN_TIDE_RISING;
+		case UNIT_ORC:               return ACHIEVEMENT_WARLORDS_BROOD;
+		case UNIT_WOLF:              return ACHIEVEMENT_HOWLING_HORDE;
+		case UNIT_TROLL:             return ACHIEVEMENT_BRIDGE_TROLL_TOLL;
+		case UNIT_YETI:              return ACHIEVEMENT_COLDBLOODED;
+		case UNIT_BEHEMOTH:          return ACHIEVEMENT_MONSTER_MASH;
+		case UNIT_INFANTRYMAN:       return ACHIEVEMENT_MARCH_OF_THE_BRAVE;
+		case UNIT_ARCHER:            return ACHIEVEMENT_VOLLEY_FIRE;
+		case UNIT_FOOTMAN:           return ACHIEVEMENT_IRON_DISCIPLINE;
+		case UNIT_BISHOP:            return ACHIEVEMENT_MEDITATIONS_OF_WAR;
+		case UNIT_CAVALIER:          return ACHIEVEMENT_CHARGE_OF_THE_VALIANT;
+		case UNIT_CRUSADER:          return ACHIEVEMENT_HOLY_RECKONING;
+		case UNIT_DEMON:             return ACHIEVEMENT_INFERNAL_RECRUITMENT;
+		case UNIT_SUCCUBUS:          return ACHIEVEMENT_DEADLY_SEDUCTION;
+		case UNIT_HIPPOGRIFF:        return ACHIEVEMENT_SKYBOUND_SENTINELS;
+		case UNIT_MINOTAUR:          return ACHIEVEMENT_MAZE_RUNNERS;
+		case UNIT_MANTICORE:         return ACHIEVEMENT_WINGS_OF_TERROR;
+		case UNIT_RED_DRAGON:        return ACHIEVEMENT_BORN_OF_FIRE;
+		case UNIT_PIXIE:             return ACHIEVEMENT_FEY_AWAKENING;
+		case UNIT_DRYAD:             return ACHIEVEMENT_GUARDIAN_OF_THE_GLADE;
+		case UNIT_ELF:               return ACHIEVEMENT_VERDANT_VANGUARD;
+		case UNIT_DRUID:             return ACHIEVEMENT_NATURES_WRATH;
+		case UNIT_UNICORN:           return ACHIEVEMENT_LIGHT_IN_THE_FOREST;
+		case UNIT_PHOENIX:           return ACHIEVEMENT_ASHES_REBORN;
+		case UNIT_GOLEM:             return ACHIEVEMENT_FORGED_FOR_WAR;
+		case UNIT_DWARF:             return ACHIEVEMENT_MOUNTAINBORN;
+		case UNIT_ARCANE_CONSTRUCT:  return ACHIEVEMENT_GEARS_OF_THE_ARCANE;
+		case UNIT_GENIE:             return ACHIEVEMENT_WISHES_AND_WARFARE;
+		case UNIT_MAGE:              return ACHIEVEMENT_MASTERS_OF_THE_MYSTIC_ARTS;
+		case UNIT_TITAN:             return ACHIEVEMENT_STORMLORDS_CALL;
+		default:                     return ACHIEVEMENT_NONE;
+	}
 }
 
 void game_t::check_for_game_status_updates() {
@@ -1432,7 +1500,7 @@ bool game_t::pickup_object(hero_t* hero, interactable_object_t* object, int x, i
 		auto quantity = res->min_quantity;
 		rg.set_value_for_type(res->resource_type, quantity);
 		get_player(hero->player).resources += rg; //fixme
-		//update_achievement_stats(get_player(hero->player).player_stats.resources.total_resources_picked_up, rg, get_achievement_for_resources(rg));
+		update_resource_achievement_stats(*this, get_player(hero->player).player_stats.resources.total_resources_picked_up, res->resource_type, quantity, get_achievement_for_resources(rg));
 
 		remove_interactable_object_callback_fn(object, false);
 		map.remove_interactable_object(object);
@@ -1444,13 +1512,16 @@ bool game_t::pickup_object(hero_t* hero, interactable_object_t* object, int x, i
 		auto campfire = (campfire_t*)object;
 		int goldval = (int)campfire->gold_value * 100;
 		auto resval = campfire->resource_value;
-		auto restype = campfire->resource_type;
 		
 		resource_group_t res;
 		res.set_value_for_type(RESOURCE_GOLD, goldval);
 		res.set_value_for_type(campfire->resource_type, resval);
 		get_player(hero->player).resources += res;
 		update_achievement_stats(get_player(hero->player).player_stats.exploration.campfires_visited, 1, ACHIEVEMENT_GOING_CAMPING);
+		update_resource_achievement_stats(*this, get_player(hero->player).player_stats.resources.total_resources_picked_up, RESOURCE_GOLD, goldval, ACHIEVEMENT_MONEY_ON_MY_MIND);
+		resource_group_t campfire_resource;
+		campfire_resource.set_value_for_type(campfire->resource_type, resval);
+		update_resource_achievement_stats(*this, get_player(hero->player).player_stats.resources.total_resources_picked_up, campfire->resource_type, resval, get_achievement_for_resources(campfire_resource));
 		
 		show_dialog_callback_fn(DIALOG_TYPE_PICKUP_CAMPFIRE, object, hero, goldval, resval);
 
@@ -2299,7 +2370,7 @@ bool game_t::buy_troops_at_object(player_e player_num, interactable_object_t* ob
 	player.resources -= troop_cost;
 	troops->stack_size -= count;
 
-	player.player_stats.units_recruited[troops->unit_type] += count;
+	update_achievement_stats(player.player_stats.units_recruited[troops->unit_type], count, get_recruitment_achievement(troops->unit_type));
 	player.player_stats.total_units_recruited += count;
 
 	troop_t troops_to_buy(troops->unit_type, count);
@@ -2331,7 +2402,7 @@ bool game_t::buy_troops_at_town(player_e player_num, town_t* town, uint slot_num
 	
 	player.resources -= troop_cost;
 	
-	player.player_stats.units_recruited[troop.unit_type] += count;
+	update_achievement_stats(player.player_stats.units_recruited[troop.unit_type], count, get_recruitment_achievement(troop.unit_type));
 	player.player_stats.total_units_recruited += count;
 
 	//todo: refactor this to troop_t::combine_troops or similar
@@ -2479,27 +2550,25 @@ bool game_t::build_building(town_t* town, building_e building_id) {
 	const auto& building_info = game_config::get_building(building_id);
 
 	switch(town->town_type)	{
-		case TOWN_KNIGHT:		cs.paladin_buildings++; break;
-		case TOWN_BARBARIAN:	cs.barbarian_buildings++; break;
-		case TOWN_NECROMANCER:	cs.necromancer_buildings++; break;
-		case TOWN_SORCERESS:	cs.enchantress_buildings++; break;
-		case TOWN_WARLOCK:		cs.warlock_buildings++; break;
-		case TOWN_WIZARD:		cs.wizard_buildings++; break;
+		case TOWN_KNIGHT:		update_achievement_stats(cs.paladin_buildings, 1, ACHIEVEMENT_HOLY_FOUNDATIONS); break;
+		case TOWN_BARBARIAN:	update_achievement_stats(cs.barbarian_buildings, 1, ACHIEVEMENT_BLOOD_SWEAT_AND_STONE); break;
+		case TOWN_NECROMANCER:	update_achievement_stats(cs.necromancer_buildings, 1, ACHIEVEMENT_TOMBSTONE_BOOMTOWN); break;
+		case TOWN_SORCERESS:	update_achievement_stats(cs.enchantress_buildings, 1, ACHIEVEMENT_ENCHANTED_EXPANSION); break;
+		case TOWN_WARLOCK:		update_achievement_stats(cs.warlock_buildings, 1, ACHIEVEMENT_MORDOR_EXPANSION_PROJECT); break;
+		case TOWN_WIZARD:		update_achievement_stats(cs.wizard_buildings, 1, ACHIEVEMENT_THE_GRAND_ARCHIVE); break;
 		default: break;
 	}
 	
 	if(building_id == BUILDING_FORT)
-		cs.total_forts_built++;
+		update_achievement_stats(cs.total_forts_built, 1, ACHIEVEMENT_FORT_KNOX);
 	else if(building_id == BUILDING_CASTLE)
-		cs.total_castles_upgraded++;
+		update_achievement_stats(cs.total_castles_upgraded, 1, ACHIEVEMENT_CASTLEMANIA);
 	else if(building_id == BUILDING_MARKETPLACE)
-		cs.total_marketplaces_built++;
+		update_achievement_stats(cs.total_marketplaces_built, 1, ACHIEVEMENT_WOLF_OF_WALLSTREET);
 	else if(building_id == BUILDING_CAPTAINS_QUARTERS)
-		cs.total_captains_quarters_built++;
-	else if(building_id == BUILDING_MARKETPLACE)
-		pl.player_stats.construction.total_marketplaces_built++;
+		update_achievement_stats(cs.total_captains_quarters_built, 1, ACHIEVEMENT_OH_CAPTAIN_MY_CAPTAIN);
 	else if(building_id == BUILDING_TURRET_LEFT || building_id == BUILDING_TURRET_RIGHT)
-		pl.player_stats.construction.total_turrets_built++;
+		update_achievement_stats(cs.total_turrets_built, 1, ACHIEVEMENT_TOWER_DEFENSE);
 
 	if(building_id == BUILDING_FORT || building_id == BUILDING_CASTLE)
 		update_interactable_object_callback_fn(town);
@@ -2509,23 +2578,26 @@ bool game_t::build_building(town_t* town, building_e building_id) {
 		update_visibility(town->player);
 	}
 
-	bool fully_upgraded = (town->is_building_built(BUILDING_CASTLE) && town->is_building_built(BUILDING_TURRET_LEFT) && town->is_building_built(BUILDING_TURRET_RIGHT));
+	bool fully_upgraded = town->is_building_built(BUILDING_CASTLE)
+			&& town->is_building_built(BUILDING_TURRET_LEFT)
+			&& town->is_building_built(BUILDING_TURRET_RIGHT)
+			&& town->is_building_built(BUILDING_CAPTAINS_QUARTERS);
 	
-	if(building_id == BUILDING_TURRET_LEFT || building_id == BUILDING_TURRET_RIGHT || building_id == BUILDING_CAPTAINS_QUARTERS)
-		cs.total_castles_fully_upgraded++;
+	if(fully_upgraded && (building_id == BUILDING_CASTLE || building_id == BUILDING_TURRET_LEFT || building_id == BUILDING_TURRET_RIGHT || building_id == BUILDING_CAPTAINS_QUARTERS))
+		update_achievement_stats(cs.total_castles_fully_upgraded, 1, ACHIEVEMENT_MAXIMUM_FORTIFICATION);
 		
 	switch(building_info.subtype) {
-		case BUILDING_BASE_TYPE_GENERATOR1: cs.total_tier1_dwellings_built++; break;
-		case BUILDING_BASE_TYPE_GENERATOR2: cs.total_tier2_dwellings_built++; break;
-		case BUILDING_BASE_TYPE_GENERATOR3: cs.total_tier3_dwellings_built++; break;
-		case BUILDING_BASE_TYPE_GENERATOR4: cs.total_tier4_dwellings_built++; break;
-		case BUILDING_BASE_TYPE_GENERATOR5: cs.total_tier5_dwellings_built++; break;
-		case BUILDING_BASE_TYPE_GENERATOR6: cs.total_tier6_dwellings_built++; break;
+		case BUILDING_BASE_TYPE_GENERATOR1: update_achievement_stats(cs.total_tier1_dwellings_built, 1, ACHIEVEMENT_HUMBLE_BEGINNINGS); break;
+		case BUILDING_BASE_TYPE_GENERATOR2: update_achievement_stats(cs.total_tier2_dwellings_built, 1, ACHIEVEMENT_THE_WARRIORS_DEN); break;
+		case BUILDING_BASE_TYPE_GENERATOR3: update_achievement_stats(cs.total_tier3_dwellings_built, 1, ACHIEVEMENT_BARRACKS_AND_BEYOND); break;
+		case BUILDING_BASE_TYPE_GENERATOR4: update_achievement_stats(cs.total_tier4_dwellings_built, 1, ACHIEVEMENT_FORGE_OF_CHAMPIONS); break;
+		case BUILDING_BASE_TYPE_GENERATOR5: update_achievement_stats(cs.total_tier5_dwellings_built, 1, ACHIEVEMENT_MONSTERS_ROOST); break;
+		case BUILDING_BASE_TYPE_GENERATOR6: update_achievement_stats(cs.total_tier6_dwellings_built, 1, ACHIEVEMENT_BEHEMOTHS_BIRTHPLACE); break;
 		default: break;
 	}
 
 	if(building_info.subtype >= BUILDING_BASE_TYPE_SPECIAL1 && building_info.subtype <= BUILDING_BASE_TYPE_SPECIAL4)
-		cs.total_special_buildings_built++;
+		update_achievement_stats(cs.total_special_buildings_built, 1, ACHIEVEMENT_ARCHITECT_OF_DESTINY);
 
 	return true;
 }
