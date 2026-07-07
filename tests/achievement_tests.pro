@@ -12,6 +12,7 @@ PKGCONFIG += lua5.4
 LIBS += -llua5.4
 
 SOURCES += achievement_tests.cpp \
+           combat_achievement_tests.cpp \
            ../game/src/core/ai_adventure_map.cpp \
            ../game/src/core/ai_combat.cpp \
            ../game/src/core/adventure_map.cpp \
