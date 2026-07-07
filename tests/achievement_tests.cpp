@@ -10,6 +10,8 @@
 
 #include <QBitArray>
 
+int run_combat_achievement_tests();
+
 namespace {
 int failures = 0;
 
@@ -501,6 +503,9 @@ void test_watchtower_exploration_progress_and_callbacks() {
         auto hero = make_hero(25, 25);
         auto* watchtower = add_object(game.map, 25, 25, OBJECT_WATCHTOWER);
         game.show_dialog_callback_fn = [](dialog_type_e, interactable_object_t*, hero_t*, int, int) {};
+        game.show_hero_levelup_callback_fn = [](hero_t*, skill_e, skill_e, skill_e, stat_e, bool) {};
+        game.game_event_callback_fn = [](game_state_update_e, player_e, int) {};
+        game.update_interactable_object_callback_fn = [](interactable_object_t*) {};
         std::vector<achievement_e> earned;
         game.achievement_earned_callback_fn = [&](achievement_e achievement) {
                 earned.push_back(achievement);
@@ -533,6 +538,9 @@ void test_keymaster_tent_progress_and_callback() {
         auto* tent = static_cast<keymaster_tent_t*>(add_object(game.map, 1, 1, OBJECT_KEYMASTER_TENT));
         tent->color = 2;
         game.show_dialog_callback_fn = [](dialog_type_e, interactable_object_t*, hero_t*, int, int) {};
+        game.show_hero_levelup_callback_fn = [](hero_t*, skill_e, skill_e, skill_e, stat_e, bool) {};
+        game.game_event_callback_fn = [](game_state_update_e, player_e, int) {};
+        game.update_interactable_object_callback_fn = [](interactable_object_t*) {};
         std::vector<achievement_e> earned;
         game.achievement_earned_callback_fn = [&](achievement_e achievement) {
                 earned.push_back(achievement);
@@ -689,6 +697,7 @@ void test_recruitment_achievement_progress_and_callbacks() {
         }
 }
 
+
 void test_achievement_config_is_well_formed() {
         const auto& achievements = game_config::get_achievements();
         expect_true(!achievements.empty(), "achievement config should load at least one achievement");
@@ -779,6 +788,10 @@ int main() {
                 std::cerr << "FAIL: could not load creatures config\n";
                 return EXIT_FAILURE;
         }
+        if(game_config::load_spells("../") != 0) {
+                std::cerr << "FAIL: could not load spells config\n";
+                return EXIT_FAILURE;
+        }
 
         test_achievement_config_is_well_formed();
         test_every_configured_achievement_can_fire_callback();
@@ -797,6 +810,7 @@ int main() {
         test_full_map_reveal_progress_and_callbacks();
         test_construction_achievement_progress_and_callbacks();
         test_recruitment_achievement_progress_and_callbacks();
+        failures += run_combat_achievement_tests();
 
         if(failures != 0) {
                 std::cerr << failures << " achievement test(s) failed.\n";
