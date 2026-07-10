@@ -484,6 +484,7 @@ struct battlefield_t {
 	uint get_unit_adjusted_attack(battlefield_unit_t& unit);
 	uint get_unit_adjusted_defense(battlefield_unit_t& unit);
 	uint get_unit_adjusted_hp(const battlefield_unit_t& unit);
+	void adjust_unit_health_after_max_hp_change(battlefield_unit_t& unit, uint previous_max_hp);
 	std::pair<uint, uint> get_unit_adjusted_damage_range(battlefield_unit_t& unit);
 
 	int get_hero_adjusted_power(hero_t* hero);

@@ -973,6 +973,16 @@ uint battlefield_t::get_unit_adjusted_hp(const battlefield_unit_t& unit) {
 	return hp;
 }
 
+void battlefield_t::adjust_unit_health_after_max_hp_change(battlefield_unit_t& unit, uint previous_max_hp) {
+	if(unit.stack_size == 0)
+		return;
+
+	previous_max_hp = std::max(1u, previous_max_hp);
+	const uint new_max_hp = get_unit_adjusted_hp(unit);
+	const float hp_percent = unit.unit_health / static_cast<float>(previous_max_hp);
+	unit.unit_health = std::clamp(static_cast<uint>(new_max_hp * hp_percent), 1u, new_max_hp);
+}
+
 std::pair<uint, uint> battlefield_t::get_unit_adjusted_damage_range(battlefield_unit_t& unit) {
 	auto& army_of_unit = unit.is_attacker ? attacking_army : defending_army;
 	
@@ -1919,9 +1929,7 @@ spell_result_e battlefield_t::cast_spell(hero_t* caster, spell_e spell_id, int t
 				return SPELL_RESULT_INVALID_TARGET;
 
 			auto buff = get_buff_for_spell(spell_id);
-			float prebuff_hp_percent = 1.f;
-			if(buff == BUFF_INCREASED_HEALTH) //adjust hp to match the previous percentage
-				prebuff_hp_percent = target->unit_health / (float)get_unit_adjusted_hp(*target);
+			const uint previous_max_hp = get_unit_adjusted_hp(*target);
 			
 			auto magnitude = spell.multiplier[0].get_value(caster->get_effective_power(), caster->get_spell_effect_multiplier(spell_id));
 			auto duration = spell.multiplier[1].get_value(caster->get_effective_power(), caster->get_spell_effect_multiplier(spell_id));
@@ -1946,7 +1954,7 @@ spell_result_e battlefield_t::cast_spell(hero_t* caster, spell_e spell_id, int t
 			}
 
 			if(buff == BUFF_INCREASED_HEALTH)
-				target->unit_health = std::clamp((uint)(get_unit_adjusted_hp(*target) * prebuff_hp_percent), 1u, get_unit_adjusted_hp(*target));
+				adjust_unit_health_after_max_hp_change(*target, previous_max_hp);
 
 			if(buff == BUFF_CATS_SWIFTNESS)
 				target->retaliations_remaining += target->get_buff(BUFF_CATS_SWIFTNESS).magnitude;
@@ -1974,9 +1982,12 @@ spell_result_e battlefield_t::cast_spell(hero_t* caster, spell_e spell_id, int t
 					continue;
 				
 				auto buff = get_buff_for_spell(spell_id);
+				const uint previous_max_hp = get_unit_adjusted_hp(unit);
 				unit.add_buff(buff, caster->get_effective_power(),
 							 spell.multiplier[0].get_value(caster->get_effective_power(),
 							 caster->get_spell_effect_multiplier(spell_id)));
+				if(buff == BUFF_INCREASED_HEALTH)
+					adjust_unit_health_after_max_hp_change(unit, previous_max_hp);
 
 				if(caster->has_talent(TALENT_INNERVATE)) {
 					unit.add_buff(BUFF_INCREASED_INITIATIVE, 2);
@@ -2952,14 +2963,18 @@ void battlefield_t::next_round() {
 				buff.duration--;
 			
 			if(buff.duration == 0) {
+				const auto expired_buff_id = buff.buff_id;
+				const uint previous_max_hp = get_unit_adjusted_hp(unit);
 				if(!is_quick_combat) {
 					battle_action_t action; //todo: group these up?
 					action.action = ACTION_BUFF_EXPIRED;
 					action.acting_unit = unit;
-					action.buff_id = buff.buff_id;
+					action.buff_id = expired_buff_id;
 					fn_emit_combat_action(action);
 				}
-				unit.remove_buff(buff.buff_id);
+				unit.remove_buff(expired_buff_id);
+				if(expired_buff_id == BUFF_INCREASED_HEALTH)
+					adjust_unit_health_after_max_hp_change(unit, previous_max_hp);
 			}
 		}
 
