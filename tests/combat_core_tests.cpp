@@ -216,6 +216,32 @@ void test_healing_exact_edge_cases_from_regression_suite() {
         expect_eq(result.second, static_cast<uint16_t>(0), "healing a full stack should report no revived units");
 }
 
+void test_fortitude_expiration_preserves_health_percentage() {
+        battlefield_t battlefield;
+        battlefield.fn_emit_combat_action = [](const battle_action_t&) {};
+        auto& full_unit = battlefield.attacking_army.troops[0];
+        full_unit = make_unit(UNIT_HIPPOGRIFF, 2, true, 4, 4, 4);
+        full_unit.unit_health = full_unit.get_base_max_hitpoints();
+        expect_true(full_unit.add_buff(BUFF_INCREASED_HEALTH, 1, 50), "test setup should fortify full unit");
+        battlefield.adjust_unit_health_after_max_hp_change(full_unit, full_unit.get_base_max_hitpoints());
+        expect_eq(battlefield.get_unit_adjusted_hp(full_unit), static_cast<uint>(60), "fortitude should increase Hippogriff max HP by 50%");
+        expect_eq(full_unit.unit_health, static_cast<uint16_t>(60), "full fortified unit should be full at adjusted max HP");
+
+        auto& damaged_unit = battlefield.defending_army.troops[0];
+        damaged_unit = make_unit(UNIT_HIPPOGRIFF, 2, false, 5, 6, 4);
+        damaged_unit.unit_health = 20;
+        expect_true(damaged_unit.add_buff(BUFF_INCREASED_HEALTH, 1, 50), "test setup should fortify damaged unit");
+        battlefield.adjust_unit_health_after_max_hp_change(damaged_unit, damaged_unit.get_base_max_hitpoints());
+        expect_eq(damaged_unit.unit_health, static_cast<uint16_t>(30), "damaged fortified unit should keep its health percentage when max HP rises");
+
+        battlefield.next_round();
+
+        expect_true(!full_unit.has_buff(BUFF_INCREASED_HEALTH), "fortitude should expire after its duration reaches zero");
+        expect_eq(battlefield.get_unit_adjusted_hp(full_unit), static_cast<uint>(40), "expired fortitude should restore base max HP");
+        expect_eq(full_unit.unit_health, static_cast<uint16_t>(40), "full unit HP should be capped when fortitude expires");
+        expect_eq(damaged_unit.unit_health, static_cast<uint16_t>(20), "damaged unit should keep its health percentage when fortitude expires");
+}
+
 void test_damage_prediction_and_adjusted_stats_are_bounded() {
         battlefield_t battlefield;
         battlefield.fn_emit_combat_action = [](const battle_action_t&) {};
@@ -385,6 +411,7 @@ int main() {
         test_healing_simulate_and_resurrect();
         test_dead_stack_zero_healing_does_not_reoccupy_hex();
         test_healing_exact_edge_cases_from_regression_suite();
+        test_fortitude_expiration_preserves_health_percentage();
         test_damage_prediction_and_adjusted_stats_are_bounded();
         test_turn_queue_orders_by_adjusted_initiative_speed_and_troop_bar();
         test_wait_queue_uses_adjusted_reverse_order();
