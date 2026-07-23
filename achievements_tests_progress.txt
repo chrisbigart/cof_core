@@ -18,10 +18,12 @@ Adventure map / economy / progression tests implemented:
 - Generic achievement config validation, callback firing, threshold crossing, and one-shot semantics.
 
 Combat tests implemented:
-- ACHIEVEMENT_STORM_DRINKER has a concrete spell-cast scenario: a hero casts SPELL_LIGHTNING_BOLT against enemy troops, lightning damage is recorded, battle results are accepted, and the achievement callback is asserted.
+- The elemental spell-damage Magic achievements now have concrete spell-cast scenarios: In Flames (Fire Ball), Winter Is Coming (Frost Ray), Storm Drinker (Lightning Bolt), Earthshaker (Meteor Shower), Chaos Theory (Death Coil), and Blinded by the Light (Holy Shout). Each scenario casts through battlefield_t::cast_spell(), verifies typed damage stats, accepts battle results, and asserts callback progress.
+- Additional Magic achievements now have concrete combat scenarios: I Dream of Genie, Friendly Fire, Brains Beats Brawn, Quenching the Flame, Meteoric Rise, Grave Mistake, Creative Caster, Watch the World Burn, and Master of the Arcane.
 - All configured ACHIEVEMENT_TYPE_MAGIC achievements have explicit test cases.
 - All configured ACHIEVEMENT_TYPE_MIGHT achievements have explicit test cases.
 - Magic and Might combat-stat achievements are tested through battlefield_t/game_t::battle stats and game_t::accept_battle_results().
+- Additional Might achievements now have concrete combat scenarios: The Reaper, One Punch Hero, Shot Through the Heart, Titanic Smackdown, The Bigger They Are..., Unbreakable, High Roller, Maximum Overkill, and Crunching Numbers.
 - Magic and Might event achievements are tested through battlefield_t/game_t::battle conditions and game_t::accept_battle_results() where a gameplay combat-result path exists.
 
 Known passing state
@@ -37,8 +39,7 @@ Known failing achievement tests
 Still needs implementing / improving
 ------------------------------------
 - Replace remaining synthetic combat-stat/event setup with concrete battlefield actions for each Magic and Might achievement where practical, similar to the new Storm Drinker Lightning Bolt scenario.
-- Add concrete spell-cast scenarios for the remaining elemental damage achievements: In Flames, Winter Is Coming, Earthshaker, Chaos Theory, and Blinded by the Light.
-- Add concrete scenarios for special Magic achievements such as Friendly Fire, Quenching the Flame, Conductive Critters, Meteoric Rise, Grave Mistake, Second Life, Creative Caster, Watch the World Burn, Master of the Arcane, and Energizer Bunny.
-- Add concrete combat-action scenarios for Might achievements such as Shot Through the Heart, Titanic Smackdown, The Bigger They Are..., Unbreakable, Outlast, High Roller, Maximum Overkill, and Crunching Numbers.
+- Add concrete scenarios for remaining special Magic achievements where gameplay support is practical: Conductive Critters, Second Life, and Energizer Bunny.
+- Add concrete combat-action scenarios for remaining Might achievements where gameplay support is practical: Outlast and other win-condition/stat-only Might achievements.
 - ACHIEVEMENT_TURTLING_UP currently has no live combat-result stat path in the core gameplay code; it is covered for achievement progress semantics but still needs gameplay implementation before a true battlefield scenario can be tested.
 - ACHIEVEMENT_ANCIENT_SECRETS is combat-adjacent via Pyramid battle rewards and is covered for progress semantics; a fuller integration test should drive a Pyramid battle reward flow.
