@@ -308,7 +308,7 @@ map_error_e read_map_file_stream(QDataStream& stream, adventure_map_t& map, map_
 
 		int player = hero.player;
 		player--;
-		if(player >= 0 && player < map.player_configurations.size()) {
+		if(player >= 0 && player < std::ssize(map.player_configurations)) {
 			if(map.player_configurations[player].starting_hero_id == -1) {
 				map.player_configurations[player].starting_hero_id = hero.id;
 				map.player_configurations[player].is_hero_set_by_map = true;

@@ -135,52 +135,49 @@ namespace lua {
 	}
 
 	//hero-related functions
-	int SetHeroName(lua_State* L) {
+	int SetHeroName(lua_State*) {
 		// Implement the functionality to set the hero's name
 		return 0;
 	}
 
-	int SetHeroClass(lua_State* L) {
+	int SetHeroClass(lua_State*) {
 		// Implement the functionality to set the hero's class
 		return 0;
 	}
 
-	int SetHeroLevel(lua_State* L) {
+	int SetHeroLevel(lua_State*) {
 		// Implement the functionality to set the hero's level
 		return 0;
 	}
 
-	int AddHeroExperience(lua_State* L) {
+	int AddHeroExperience(lua_State*) {
 		// Implement the functionality to add experience points to the hero
 		return 0;
 	}
 
-	int LearnSkill(lua_State* L) {
+	int LearnSkill(lua_State*) {
 		// Implement the functionality to make the hero learn a specific skill at a certain level
 		return 0;
 	}
 
-	int UnlearnSkill(lua_State* L) {
+	int UnlearnSkill(lua_State*) {
 		// Implement the functionality to make the hero unlearn a specific skill
 		return 0;
 	}
 
-	int UpgradeSkill(lua_State* L) {
+	int UpgradeSkill(lua_State*) {
 		// Implement the functionality to upgrade a specific skill of the hero to a certain level
 		return 0;
 	}
 
-	int GiveHeroArtifact(lua_State* L) {
+	int GiveHeroArtifact(lua_State*) {
 		// Implement the functionality to give a specific artifact to the hero
 		return 0;
 	}
 
 
-	int SendPlayerConsoleMessage(lua_State* L) {
+	int SendPlayerConsoleMessage(lua_State*) {
 		if(!_game) return 0;
-		
-		auto player = lua_tonumber(L,1);
-		auto message = lua_tostring(L, 2);
 		
 		//if(message)
 		//	std::cout << "console message from lua: " << message << std::endl;
@@ -188,13 +185,8 @@ namespace lua {
 		return 1;
 	}
 
-	int ShowPlayerMessage(lua_State* L) {
+	int ShowPlayerMessage(lua_State*) {
 		if(!_game) return 0;
-		
-		auto player = lua_tonumber(L,1);
-		auto message = lua_tostring(L, 2);
-		auto resource_type = lua_tonumber(L,2);
-		auto amount = lua_tonumber(L,3);
 		return 1;
 	}
 

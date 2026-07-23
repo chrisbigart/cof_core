@@ -230,6 +230,8 @@ stat_distribution_t hero_t::get_stat_distribution_for_class(hero_class_e hero_cl
 		
 		case HERO_CLASS_CUSTOM:
 			break;
+		default:
+			break;
 	}
 	
 	
@@ -608,7 +610,7 @@ bool hero_t::does_artifact_fit_in_slot(artifact_slot_e artifact_slot, uint hero_
 }
 
 bool hero_t::is_backpack_full() const {
-	for(int i = 0; i < backpack.size(); i++) {
+	for(std::size_t i = 0; i < backpack.size(); i++) {
 		if(backpack[i] == ARTIFACT_NONE)
 			return false;
 	}
@@ -987,7 +989,7 @@ void hero_t::init_talents() {
 		if(t.hero_class != hero_class)
 			continue;
 		
-		if(selected[t.tier].size() >= tier_size[t.tier])
+		if(std::ssize(selected[t.tier]) >= tier_size[t.tier])
 			continue;
 		
 		//prevent duplicates
@@ -1016,7 +1018,7 @@ bool talent_valid(talent_e talent) {
 
 bool hero_t::is_talent_unlocked(talent_e talent_id) const {
 	int pos = -1;
-	for(int i = 0; i < available_talents.size(); i++) {
+	for(std::size_t i = 0; i < available_talents.size(); i++) {
 		if(available_talents[i] == talent_id)
 			pos = i;
 	}
@@ -1332,7 +1334,6 @@ bool hero_t::is_inventory_full(artifact_e artifact_id) const {
 			return false;
 	}
 	
-	int open_slot = -1;//backpack.get_next_open_slot()
 	for(uint i = 0; i < game_config::HERO_BACKPACK_SLOTS; i++) {
 		if(backpack[i] == ARTIFACT_NONE)
 			return false;
@@ -1595,8 +1596,7 @@ uint hero_t::get_unit_initiative(unit_type_e unit_type) const {
 	return initiative;
 }
 
-int hero_t::get_unit_luck(unit_type_e unit_type) const {
-	const auto& creature = game_config::get_creature(unit_type);
+int hero_t::get_unit_luck(unit_type_e) const {
 	int luck = get_luck();
 
 	return luck;
@@ -1688,7 +1688,7 @@ stat_e hero_t::level_up_stats() {
 
 int get_class_learnrate(const skill_t& skill, hero_class_e hero_class) {
 	auto index = (std::countr_zero((uint16_t)hero_class) - 1);
-	if(index < 0 || index >= skill.class_learnrate.size())
+	if(index < 0 || index >= std::ssize(skill.class_learnrate))
 		return 5;
 
 	return skill.class_learnrate[index];

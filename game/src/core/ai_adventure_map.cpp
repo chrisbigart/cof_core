@@ -265,7 +265,6 @@ struct hero_plan_t {
 
 
 interactable_object_t* find_best_object(const hero_t& hero, const adventure_map_t& map, const game_t& game) {
-	interactable_object_t* valuable_object = nullptr;
 	//find the highest value object in a NxN radius
 	int radius = 7;
 	interactable_object_t* valuable_obj = nullptr;
@@ -291,14 +290,11 @@ interactable_object_t* find_best_object(const hero_t& hero, const adventure_map_
 	return valuable_obj;
 }
 
-bool game_t::ai_should_recruit_troops(const hero_t* hero, const town_t* town) const {
+bool game_t::ai_should_recruit_troops(const hero_t*, const town_t* town) const {
 	if(!town)
 		return false;
 
-	auto player = hero ? hero->player : town->player;
-
 	bool should_buy = false;
-	int slot = 0;
 	for(auto& tr : town->available_troops) {
 		int afford_count = tr.stack_size;
 		if(afford_count)
@@ -396,6 +392,8 @@ bool game_t::ai_pickup_object(hero_t* hero, interactable_object_t* object) {
 
 			break;
 		}
+		default:
+			break;
 	}
 
 	if(picked_up_item) {
@@ -433,7 +431,6 @@ bool game_t::ai_move_hero_to_object(hero_t* hero, interactable_object_t* object)
 				
 			last_turn_actions[player_num].push_back(movement_action);
 			map.move_hero_to_tile(*hero, step->tile.x, step->tile.y, *this);
-			auto obj = map.get_interactable_object_for_tile(step->tile.x, step->tile.y);
 			//map.interact_with_object(&hero, obj, *this);
 		}
 	}
