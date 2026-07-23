@@ -49,7 +49,7 @@ QDataStream& operator>>(QDataStream& stream, resource_group_t& resource) {
 
 resource_group_t operator+(const resource_group_t& a, const resource_group_t& b) {
 	resource_group_t out = a;
-	for(int i = 0; i < b.values.size(); i++)
+	for(std::size_t i = 0; i < b.values.size(); i++)
 		out.values[i].value += b.values[i].value;
 
 	return out;
@@ -301,7 +301,6 @@ void game_t::check_for_game_status_updates() {
 
 game_status_e game_t::get_scenario_status() {
 	bool human_alive = false;
-	bool human_allies_alive = false;
 	bool cpu_alive = false;
 
 	//todo handle hotseat
@@ -358,7 +357,7 @@ bool game_t::player_valid(player_e player) const {
 	if(player == PLAYER_NONE || player == PLAYER_NEUTRAL)
 		return false;
 		
-	if((player - 1) >= players.size())
+	if(static_cast<std::size_t>(player - 1) >= players.size())
 		return false;
 	
 	return true;
@@ -1125,6 +1124,8 @@ void game_t::accept_battle_results() {
 
 		if(battle.defending_map_object) {
 			switch(battle.defending_map_object->object_type) {
+				default:
+					break;
 				case OBJECT_GRAVEYARD: {
 					//fixme
 					auto graveyard = (graveyard_t*)battle.defending_map_object;
@@ -1213,6 +1214,8 @@ map_action_e game_t::interact_with_object(hero_t* hero, interactable_object_t* o
 					update_backpack_achievement_stats(*this, hero);
 				break;
 			}
+			default:
+				break;
 		}
 
 		show_dialog_callback_fn(DIALOG_TYPE_WAGON_VISIT, object, hero, wagon->reward_type, was_backpack_full);
@@ -1296,7 +1299,6 @@ map_action_e game_t::interact_with_object(hero_t* hero, interactable_object_t* o
 	}
 	else if(object->object_type == OBJECT_WITCH_HUT) {
 		auto hut = (witch_hut_t*)object;
-		const auto& skill = game_config::get_skill(hut->skill);
 		map.set_object_visited_by_player(hut, hero->player);
 
 		if(hero->has_object_been_visited(map.get_object_id(object))) { //hero has already taken a skill/upgrade from this hut
@@ -1735,6 +1737,8 @@ map_action_e game_t::make_dialog_choice(hero_t* hero, interactable_object_t* obj
 					give_hero_xp(hero, reward.magnitude);
 					break;
 				}
+				default:
+					break;
 			}
 		}
 		
@@ -2312,7 +2316,7 @@ bool game_t::setup_scripting() {
 	return true;
 }
 
-hero_t game_t::generate_new_recruitable_hero(const player_t& player) {
+hero_t game_t::generate_new_recruitable_hero(const player_t&) {
 	std::vector<hero_t> heroes;
 	for(auto& h : game_config::get_heroes()) {
 		bool conflict = false;
@@ -2361,9 +2365,9 @@ hero_class_e get_random_adjacent_class(hero_class_e hclass) {
 			return (rand() % 2 == 1) ? HERO_CLASS_WARLOCK : HERO_CLASS_BARBARIAN;
 		case HERO_CLASS_BARBARIAN:
 			return (rand() % 2 == 1) ? HERO_CLASS_WARLOCK : HERO_CLASS_NECROMANCER;
+		default:
+			return HERO_CLASS_KNIGHT;
 	}
-
-	return HERO_CLASS_KNIGHT;
 }
 
 const std::vector<hero_class_e>& get_all_hero_classes() {
@@ -2611,7 +2615,7 @@ hero_t* game_t::recruit_hero_at_town(player_e player, int selection, town_t* tow
 		return nullptr;	
 	
 	auto& pl = get_player(player);
-	if(selection >= pl.heroes_available_to_recruit.size())
+	if(selection < 0 || selection >= std::ssize(pl.heroes_available_to_recruit))
 		return nullptr;
 
 	hero_t new_hero = pl.heroes_available_to_recruit[selection];
@@ -2666,7 +2670,6 @@ bool game_t::build_building(town_t* town, building_e building_id) {
 	//move this
 	if(building_id == BUILDING_MAGE_GUILD_1 || building_id == BUILDING_MAGE_GUILD_2 || building_id == BUILDING_MAGE_GUILD_3 || building_id == BUILDING_MAGE_GUILD_4 || building_id == BUILDING_MAGE_GUILD_5) {
 		for(auto sp : town->mage_guild_spells) {
-			auto& spell = game_config::get_spell(sp);
 			if(town->garrisoned_hero && town->garrisoned_hero->can_learn_spell(sp))
 				town->garrisoned_hero->learn_spell(sp);
 				
@@ -2810,11 +2813,13 @@ uint game_t::save_game(const std::string& filename) {
 		header.last_save_time = QDateTime::currentDateTime();
 		
 		//seek back to the start of the file, then write the updated header
-		auto res = file.seek(0);
+		if(!file.seek(0))
+			return 1;
 		write_save_game_header_stream(stream, header);
 
 		//append the save point info
-		res = file.seek(file.size());
+		if(!file.seek(file.size()))
+			return 1;
 		stream << date;
 		stream << (uint16_t)map.heroes.size();
 		for(const auto& hero : map.heroes) {
@@ -2890,6 +2895,8 @@ uint game_t::load_saved_game_info(QDataStream& stream, save_game_header_t& heade
 	//fixme: this is likely broken
 	map_file_header_t map_file_header;
 	auto err = read_map_file_stream(stream, game_info->map, map_file_header);
+	if(err != SUCCESS)
+		return err;
 	
 	//we create an initial save-point which contains the initial game data
 	save_checkpoint_t checkpoint;
@@ -2930,7 +2937,6 @@ uint game_t::load_saved_game_info(QDataStream& stream, save_game_header_t& heade
 		for(int n = 0; n < hero_count; n++) {
 			hero_t hero;
 			stream >> hero;
-			auto id = hero.id;
 			chkpt.heroes.push_back(hero);
 		}
 		

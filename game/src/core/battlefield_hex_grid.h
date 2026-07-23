@@ -225,7 +225,7 @@ struct battlefield_hex_grid_t {
 			if(!is_in_radius_of(x, y, nx, ny, radius))
 				continue;
 
-			if(!include_origin && (nx == x && ny == y))
+			if(!include_origin && (static_cast<int>(nx) == x && static_cast<int>(ny) == y))
 				continue;
 			
 			neighbor_hexes.push_back(&hexes[nx][ny]);

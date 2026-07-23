@@ -187,7 +187,7 @@ int game_config::load_object_data(const std::string& path_prefix) {
 	/////////
 	return 0;
 	
-	for(int i = 0; i < magic_enum::enum_count<interactable_object_e>(); i++) {
+	for(std::size_t i = 0; i < magic_enum::enum_count<interactable_object_e>(); i++) {
 		auto type = (interactable_object_e)i;
 		object_info_t info;
 		info.interactable_object_type = type;

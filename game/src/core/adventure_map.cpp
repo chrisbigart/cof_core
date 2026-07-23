@@ -171,9 +171,8 @@ terrain_type_e get_faction_native_terrain(hero_class_e faction) {
 		case HERO_CLASS_SORCERESS: return TERRAIN_GRASS;
 		case HERO_CLASS_WARLOCK: return TERRAIN_LAVA;
 		case HERO_CLASS_WIZARD: return TERRAIN_SNOW;
+		default: return TERRAIN_UNKNOWN;
 	}
-	
-	return TERRAIN_UNKNOWN;
 }
 
 hero_class_e get_faction_from_native_terrain_type(terrain_type_e terrain_type) {
@@ -633,13 +632,13 @@ bool adventure_map_t::remove_interactable_object(interactable_object_t* object) 
 
 const map_tile_t& adventure_map_t::get_tile(int x, int y) const {
 	assert(x >= 0 && x < width && y >= 0 && y < height);
-	assert(y * width + x < tiles.size());
+	assert(y * width + x < std::ssize(tiles));
 	return tiles[y * width + x];
 }
 
 map_tile_t& adventure_map_t::get_tile(int x, int y) {
 	assert(x >= 0 && x < width && y >= 0 && y < height);
-	assert(y * width + x < tiles.size());
+	assert(y * width + x < std::ssize(tiles));
 	return tiles[y * width + x];
 }
 
@@ -944,7 +943,7 @@ route_t adventure_map_t::get_route(const hero_t* hero, int x2, int y2, const gam
 	return route;
 }
 
-route_t adventure_map_t::get_route_ignoring_blockables(const hero_t* hero, int x2, int y2, const game_t* game) const {
+route_t adventure_map_t::get_route_ignoring_blockables(const hero_t* hero, int x2, int y2, const game_t*) const {
 	route_t route;
 	if(!hero || !tile_valid(x2, y2))
 		return route;
@@ -1187,7 +1186,7 @@ interactable_object_t* adventure_map_t::get_interactable_object_for_tile(int x, 
 		return nullptr;
 	
 	auto ind = get_tile(x, y).interactable_object - 1;
-	if(ind >= objects.size())
+	if(ind >= std::ssize(objects))
 		return nullptr;
 
 	return objects[ind];
@@ -1205,7 +1204,7 @@ extern const char* tr(const char*);
 //Swarm = 250-499
 //Zounds = 500-999
 //Legion = 1000+
-std::pair<std::string, std::string> adventure_map_t::get_troop_count_strings(uint troop_count, uint scouting_level, bool use_prefix) const {
+std::pair<std::string, std::string> adventure_map_t::get_troop_count_strings(uint troop_count, uint, bool use_prefix) const {
 	QString text = "???";
 	std::string count = "?";
 	uint min = 0;
@@ -1338,6 +1337,7 @@ map_action_e adventure_map_t::move_hero_to_tile(hero_t& hero, int x, int y, game
 			case TERRAIN_SNOW: game.update_achievement_stats(game.get_player(hero.player).player_stats.movement.total_hero_steps_taken_on_snow, 1, ACHIEVEMENT_COLD_AS_ICE); break;
 			case TERRAIN_SWAMP: game.update_achievement_stats(game.get_player(hero.player).player_stats.movement.total_hero_steps_taken_on_swamp, 1, ACHIEVEMENT_WELCOME_TO_THE_JUNGLE); break;
 			case TERRAIN_JUNGLE: game.update_achievement_stats(game.get_player(hero.player).player_stats.movement.total_hero_steps_taken_on_jungle, 1, ACHIEVEMENT_WELCOME_TO_THE_JUNGLE); break;
+			default: break;
 		}
 	}
 
@@ -1466,14 +1466,14 @@ bool adventure_map_t::move_all_artifacts_from_hero_to_hero(hero_t* hero_from, he
 		return false;
 
 	if(!backpack_only) {
-		for(int i = 0; i < hero_from->artifacts.size(); i++) {
+		for(std::size_t i = 0; i < hero_from->artifacts.size(); i++) {
 			if(hero_to->pickup_artifact(hero_from->artifacts[i]))
 				hero_from->artifacts[i] = ARTIFACT_NONE;
 		}
 	}
 
 	if(include_backpack) {
-		for(int i = 0; i < hero_from->backpack.size(); i++) {
+		for(std::size_t i = 0; i < hero_from->backpack.size(); i++) {
 			if(hero_to->pickup_artifact(hero_from->backpack[i]))
 				hero_from->backpack[i] = ARTIFACT_NONE;
 		}
@@ -1611,7 +1611,7 @@ int adventure_map_t::get_next_open_troop_slot(const troop_group_t& troops) {
 }
 
 bool adventure_map_t::dismiss_troops(hero_t* hero, int troop_index) {
-	if(!hero || troop_index < 0 || troop_index >= game_config::HERO_TROOP_SLOTS)
+	if(!hero || troop_index < 0 || troop_index >= static_cast<int>(game_config::HERO_TROOP_SLOTS))
 		return false;
 
 	hero->troops[troop_index].clear();
@@ -1619,7 +1619,7 @@ bool adventure_map_t::dismiss_troops(hero_t* hero, int troop_index) {
 }
 
 bool adventure_map_t::dismiss_troops(town_t* town, int troop_index) {
-	if(!town || troop_index < 0 || troop_index >= game_config::HERO_TROOP_SLOTS)
+	if(!town || troop_index < 0 || troop_index >= static_cast<int>(game_config::HERO_TROOP_SLOTS))
 		return false;
 
 	town->garrison_troops[troop_index].clear();
@@ -2301,7 +2301,7 @@ bool adventure_map_t::is_route_passable(hero_t* hero, int x2, int y2, game_t* ga
 	return route.size() != 0;
 }
 
-int adventure_map_t::get_time_to_tile(const hero_t* hero, int x, int y, game_t* game) const {
+int adventure_map_t::get_time_to_tile(const hero_t* hero, int, int, game_t*) const {
 	if(!hero)
 		return -1;
 

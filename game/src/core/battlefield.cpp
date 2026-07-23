@@ -227,7 +227,7 @@ QDataStream& operator>>(QDataStream& stream, battlefield_t& battlefield) {
 	return stream;
 }
 
-bool write_battlefield_to_stream(QDataStream& stream, const battlefield_t& battlefield, const game_t& game) {
+bool write_battlefield_to_stream(QDataStream& stream, const battlefield_t& battlefield, const game_t&) {
 	stream << battlefield;
 
 	//write pointers as ids
@@ -280,6 +280,8 @@ const std::string stringify_combat_action(const battle_action_t& action, const s
 	QString unit_name = tr(action.acting_unit.get_unit_name().c_str(), count);
 
 	switch(action.action) {
+		default:
+			break;
 		case ACTION_ROUND_ENDED: {
 			message = tr("End of round %1.", count)
 				.arg(action.effect_value);
@@ -447,7 +449,6 @@ const std::string stringify_combat_action(const battle_action_t& action, const s
 		
 		case ACTION_UNIT_LIFESTEAL: {
 			auto life_stolen = action.affected_units.front().damage;
-			auto units_revived = action.affected_units.front().kills;
 			message = tr("The %1 %2 %3 life.", count)
 				.arg(unit_name)
 				.arg(tr("steals", count))
@@ -585,8 +586,8 @@ std::set<battlefield_hex_t*> battlefield_t::get_movement_range(battlefield_unit_
 
 	//temporary fix for two-hex units
 	if(unit.is_two_hex()) {
-		for(int y = 0; y < game_config::BATTLEFIELD_HEIGHT; y++) {
-			for(int x = 0; x < game_config::BATTLEFIELD_WIDTH; x++) {
+		for(uint y = 0; y < game_config::BATTLEFIELD_HEIGHT; y++) {
+			for(uint x = 0; x < game_config::BATTLEFIELD_WIDTH; x++) {
 				if(!is_move_valid(unit, x, y))
 					continue;
 
@@ -678,7 +679,7 @@ bool battlefield_t::is_move_valid(battlefield_unit_t &unit, uint target_x, uint 
 		return false;
 
 	//only calculate route if unit is moving to a different hex than it currently occupies
-	if(unit.x == effective_target_x && unit.y == target_y)
+	if(unit.x == static_cast<int>(effective_target_x) && unit.y == static_cast<int>(target_y))
 		return true;
 
 	//if the target hex is occupied by a unit that isn't the acting unit, bail out
@@ -702,7 +703,7 @@ bool battlefield_t::is_move_valid(battlefield_unit_t &unit, uint target_x, uint 
 	if(route.size() == 0)
 		return false;
 	
-	if(route.size() > get_unit_adjusted_speed(unit))
+	if(std::ssize(route) > get_unit_adjusted_speed(unit))
 		return false;
 	
 	return true;
@@ -1398,7 +1399,7 @@ std::vector<battlefield_unit_t*> battlefield_t::get_chain_lightning_targets(batt
 
 	int max_target_count = jump_count + 1;
 
-	while(targets.size() < max_target_count) {
+	while(std::ssize(targets) < max_target_count) {
 		battlefield_unit_t* next_target = nullptr;
 		int closest_distance = 255;
 
@@ -1451,7 +1452,7 @@ std::vector<battlefield_unit_t*> battlefield_t::cast_spell_on_random_troops(army
 	std::shuffle(potential_targets.begin(), potential_targets.end(), std::default_random_engine{});
 
 	int picked = 0;
-	while(picked < number_of_troops_affected && picked < potential_targets.size()) {
+	while(picked < number_of_troops_affected && picked < std::ssize(potential_targets)) {
 		auto target = potential_targets[picked++];
 		auto buff = get_buff_for_spell(spell_id);
 		target->add_buff(buff, duration);
@@ -1461,7 +1462,7 @@ std::vector<battlefield_unit_t*> battlefield_t::cast_spell_on_random_troops(army
 	return targets;
 }
 
-spell_result_e battlefield_t::cast_spell(battlefield_unit_t* caster, spell_e spell_id, int target_x, int target_y, battlefield_unit_t* target_unit) {
+spell_result_e battlefield_t::cast_spell(battlefield_unit_t* caster, spell_e spell_id, int, int, battlefield_unit_t* target_unit) {
 	if(!caster || !caster->has_buff(BUFF_SPELLCASTER) || caster->spell_casts_remaining == 0 || caster->has_cast_spell)
 		return SPELL_RESULT_ERROR;
 
@@ -1491,8 +1492,6 @@ spell_result_e battlefield_t::cast_spell(battlefield_unit_t* caster, spell_e spe
 			return SPELL_RESULT_INVALID_TARGET;
 
 		target_unit = targets[std::rand() % targets.size()];
-		target_x = target_unit->x;
-		target_y = target_unit->y;
 	}
 	else if(!is_spell_target_valid(friendly_army.hero, target_unit, spell_id)) {
 		return SPELL_RESULT_INVALID_TARGET;
@@ -2081,7 +2080,7 @@ spell_result_e battlefield_t::cast_spell(hero_t* caster, spell_e spell_id, int t
 			if(!summon_hex)
 				return SPELL_RESULT_INVALID_TARGET;
 
-			int pos = 0;
+			std::size_t pos = 0;
 			for(; pos < caster_troops.size(); pos++) {
 				if(caster_troops[pos].unit_type == UNIT_UNKNOWN)
 					break;
@@ -2562,7 +2561,7 @@ void battlefield_t::reset() {
 	}
 	else if(defending_hero) {
 		int i = 0;
-		for(; i < game_config::HERO_TROOP_SLOTS; i++) {
+		for(; i < static_cast<int>(game_config::HERO_TROOP_SLOTS); i++) {
 			if(defending_hero->troops[i].stack_size == 0) {
 				defending_army.troops[i].clear();
 				continue;
@@ -2686,18 +2685,17 @@ void battlefield_t::start_combat() {
 		if(!hero)
 			return;
 
-		for(int i = 0; i < hero->artifacts.size(); i++) {
+		for(std::size_t i = 0; i < hero->artifacts.size(); i++) {
 			if(hero->artifacts[i] == ARTIFACT_NONE)
 				continue;
 
 			const auto& art_info = game_config::get_artifact(hero->artifacts[i]);
-			for(int n = 0; n < art_info.effects.size(); n++) {
+			for(std::size_t n = 0; n < art_info.effects.size(); n++) {
 				if(art_info.effects[n].type == EFFECT_SPELL_CAST_ON_BATTLE_START) {
 					auto spell_id = art_info.effects[n].property1.spell;
 					const auto& sp_info = game_config::get_spell(spell_id);
 					auto buff = get_buff_for_spell(spell_id);
 					int target_count = art_info.effects[n].magnitude_1;
-					int duration = art_info.effects[n].magnitude_2;
 					bool cast_on_friendly = is_spell_target_friendly(sp_info.target);
 					
 					auto affected_troops = cast_spell_on_random_troops(cast_on_friendly ? friendly_army.troops : enemy_army.troops, spell_id, target_count);
@@ -2738,7 +2736,7 @@ const std::vector<std::vector<battlefield_direction_e>> battlefield_t::obstacle_
 
 const int obstacle_margin = 2;
 bool obstacle_location_valid(int x, int y) {
-	return (x >= obstacle_margin && x < (game_config::BATTLEFIELD_WIDTH - obstacle_margin) && y < game_config::BATTLEFIELD_HEIGHT);
+	return (x >= obstacle_margin && x < static_cast<int>(game_config::BATTLEFIELD_WIDTH) - obstacle_margin && y < static_cast<int>(game_config::BATTLEFIELD_HEIGHT));
 }
 
 void battlefield_t::reset_castle_walls() {
@@ -2778,8 +2776,8 @@ void battlefield_t::reset_castle_walls() {
 
 void battlefield_t::setup_obstacles(bool only_clear) {
 	//clear existing obstacles if they exist
-	for(int y = 0; y < game_config::BATTLEFIELD_HEIGHT; y++)
-		for(int x = 0; x < game_config::BATTLEFIELD_WIDTH; x++)
+	for(uint y = 0; y < game_config::BATTLEFIELD_HEIGHT; y++)
+		for(uint x = 0; x < game_config::BATTLEFIELD_WIDTH; x++)
 			hex_grid.get_hex(x, y)->passable = true;
 	
 
@@ -3131,7 +3129,7 @@ std::pair<battlefield_unit_t*, battlefield_hex_t*> battlefield_t::get_nearest_ta
 			//skip finding route if we are already on the destination hex
 			if(!(acting_unit->x == hex->x && acting_unit->y == hex->y)) {
 				auto route = get_unit_route(*acting_unit, hex->x, hex->y);
-				if(!route.size() || route.size() > get_unit_adjusted_speed(*acting_unit))
+				if(route.empty() || std::ssize(route) > get_unit_adjusted_speed(*acting_unit))
 					continue;
 
 				distance = (int)route.size();
@@ -3191,7 +3189,7 @@ std::pair<battlefield_unit_t*, battlefield_hex_t*> battlefield_t::get_target_in_
 			//skip finding route if we are already on the destination hex
 			if(!(acting_unit->x == hex->x && acting_unit->y == hex->y)) {
 				auto route = get_unit_route(*acting_unit, hex->x, hex->y);
-				if(!route.size() || route.size() > get_unit_adjusted_speed(*acting_unit))
+				if(route.empty() || std::ssize(route) > get_unit_adjusted_speed(*acting_unit))
 					continue;
 			}
 			
@@ -3296,7 +3294,6 @@ bool battlefield_t::auto_move_troop() {
 	if(troop->has_buff(BUFF_BERSERK)) {
 		auto target = get_nearest_target(troop, true);
 		if(target.first) {
-			auto source_hex = hex_grid.get_hex(troop->x, troop->y);
 			auto target_hex = target.second;
 			move_and_attack_unit(*troop, *target.first, target_hex->x, target_hex->y, target.first->x, target.first->y);
 			return true;
@@ -3321,7 +3318,6 @@ bool battlefield_t::auto_move_troop() {
 	auto target = get_target_in_range(troop);
 	//auto route = get_unit_route(<#battlefield_unit_t &unit#>, <#uint target_x#>, <#uint target_y#>)
 	if(target.first) {
-		auto source_hex = hex_grid.get_hex(troop->x, troop->y);
 		auto target_hex = target.second;
 		move_and_attack_unit(*troop, *target.first, target_hex->x, target_hex->y, target.first->x, target.first->y);
 		return true;
@@ -3987,7 +3983,6 @@ int battlefield_t::unit_belongs_to_army(battlefield_unit_t* unit) {
 }
 
 bool battlefield_t::are_units_adjacent(battlefield_unit_t* attacker, battlefield_unit_t* defender) {
-	bool is_adjacent = false;
 	for(int i = 0; i < 6; i++) {
 		auto direction = (battlefield_direction_e)(TOPLEFT + i);
 		auto next_hex = hex_grid.get_adjacent_hex(defender->x, defender->y, direction);
@@ -4025,7 +4020,7 @@ bool battlefield_t::unit_can_attack(battlefield_unit_t* attacker, battlefield_un
 	
 	//if melee attack, is there a path from attacker to defender?
 	if(!can_troop_shoot(attacker)) {
-		if(attacker->x == from_x && attacker->y == from_y)
+		if(attacker->x == static_cast<int>(from_x) && attacker->y == static_cast<int>(from_y))
 			return true;
 		
 		if(!is_move_valid(*attacker, from_x, from_y))
@@ -4156,8 +4151,6 @@ uint16_t battlefield_t::deal_magic_damage_to_stack(uint32_t damage, battlefield_
 }
 
 uint16_t battlefield_t::deal_damage_to_stack(uint32_t damage, battlefield_unit_t& defender, bool is_spell_damage) {
-	auto& army_of_defender = defender.is_attacker ? attacking_army : defending_army;
-
 	auto starting_troop_count = defender.stack_size;
 	int32_t total_hp = (get_unit_adjusted_hp(defender) * (defender.stack_size - 1)) + defender.unit_health;
 	auto remaining_hp = std::max((int32_t)0, total_hp - (int32_t)damage);
@@ -4229,7 +4222,7 @@ uint16_t battlefield_t::deal_damage_to_stack(uint32_t damage, battlefield_unit_t
 	return kills;
 }
 
-void battlefield_t::handle_post_attack_effects(battlefield_unit_t& attacker, battlefield_unit_t& defender, uint32_t damage, uint16_t kills, bool was_melee_attack, bool was_lucky_strike) {
+void battlefield_t::handle_post_attack_effects(battlefield_unit_t& attacker, battlefield_unit_t& defender, uint32_t damage, uint16_t, bool was_melee_attack, bool was_lucky_strike) {
 	auto& army_of_attacker = attacker.is_attacker ? attacking_army : defending_army;
 	auto& army_of_defender = defender.is_attacker ? attacking_army : defending_army;
 	
@@ -4266,7 +4259,6 @@ void battlefield_t::handle_post_attack_effects(battlefield_unit_t& attacker, bat
 			if(attacker.unit_type == UNIT_VAMPIRE && army_of_attacker.hero && army_of_attacker.hero->specialty == SPECIALTY_VAMPIRES)
 				lifesteal_percent += get_skill_value(.2f, .02f, army_of_attacker.hero->level);
 			
-			bool plural = attacker.stack_size > 1;
 			//if we steal any hp, we steal a minimum of 1 hp
 			uint32_t max_lifesteal_hp = std::max(1u, (uint32_t)std::round(lifesteal_percent * damage));
 			auto actual_lifesteal = apply_healing_to_stack(max_lifesteal_hp, attacker, true);
@@ -4868,7 +4860,6 @@ bool battlefield_t::attack_unit(battlefield_unit_t& attacker, battlefield_unit_t
 			battle_action_t action;
 			action.action = ACTION_MORALED;
 			action.acting_unit = attacker;
-			bool plural = attacker.stack_size > 1;
 			fn_emit_combat_action(action);
 		}
 		attacker.has_moraled = true;
@@ -4916,7 +4907,7 @@ battlefield_unit_t* battlefield_t::get_unit_on_hex(hex_location_t point) {
 //this function only returns units that are able to be resurrected/revived
 //fixme: change to wrapper function get_revivable_unit_on_hex(int x, int y) which checks for clearance
 battlefield_unit_t* battlefield_t::get_dead_unit_on_hex(int x, int y) {
-	for(auto i = 0; i < army_t::MAX_BATTLEFIELD_TROOPS; i++) {
+	for(uint i = 0; i < army_t::MAX_BATTLEFIELD_TROOPS; i++) {
 		auto& at = attacking_army.troops[i];
 		auto& dt = defending_army.troops[i];
 
@@ -5026,6 +5017,8 @@ bool battlefield_t::is_spell_target_valid(hero_t* caster, int target_x, int targ
 
 			return is_spell_target_valid(caster, target, spell_id);
 		}
+		default:
+			break;
 
 	}
 
@@ -5170,7 +5163,6 @@ void battlefield_t::calculate_necromancy_results(battle_result_e battle_result) 
 		//the number of potential open army slots (after grouping up any units) and also
 		//the number and type of undead in the army, to determine what to raise
 		std::set<unit_type_e> existing_undead;
-		int potential_open_slots = 0;
 		//for(
 		
 		

@@ -250,7 +250,7 @@ void town_t::new_week(bool affected_by_freelancer, bool affected_by_call_to_arms
 	
 }
 
-resource_group_t town_t::get_daily_income(int day) {	
+resource_group_t town_t::get_daily_income(int) {
 	resource_group_t income;
 	income.set_value_for_type(RESOURCE_GOLD, 1000);
 	
@@ -521,7 +521,7 @@ void town_t::populate_available_spells(uint level) {
 	
 	int count = 6 - level;
 	// Select required number of spells for each tier
-	if(spells.size() < count)
+	if(std::ssize(spells) < count)
 		return;
 	
 	int i = 0;
@@ -611,11 +611,11 @@ void town_t::setup_buildings() {
 	allowed_spells.erase(it, allowed_spells.end());
 }
 
-std::string building_t::get_name(building_e type) {
+std::string building_t::get_name(building_e) {
 	return "TODO";
 }
 
-std::string building_t::get_description(building_e type) {
+std::string building_t::get_description(building_e) {
 	return "TODO";
 }
 
@@ -651,10 +651,9 @@ building_e building_t::get_parent_building(building_e type) {
 //	return reqs;
 //}
 
-resource_group_t building_t::get_cost(building_e type) {
+resource_group_t building_t::get_cost(building_e) {
 	resource_group_t res;
 	res.set_value_for_type(RESOURCE_GOLD, 2000);
 	
 	return res;
 }
-
